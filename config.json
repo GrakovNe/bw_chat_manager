@@ -1,0 +1,7 @@
+{
+  "TOKEN": "7137337385:AAFm2JL5okuA-AbU5SScJ7O4CL0WBN9FDXk",
+  "MIN_LENGTH": 1,
+  "ON_DELETE_MESSAGE_REPLY": "Сообщение удалено, поскольку в нем нет указания дома или двора BW\n\nЕсли вы считаете, что ваше сообщение удалили зря - напишите @maxgrakov",
+  "ADMIN_IDS": [93179449]
+}
+
