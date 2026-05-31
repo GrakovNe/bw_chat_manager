@@ -19,6 +19,24 @@ TOKEN = config.get('TOKEN')
 MIN_LENGTH = config.get('MIN_LENGTH', 10)
 ON_DELETE_MESSAGE_REPLY = config.get('ON_DELETE_MESSAGE_REPLY', 'Your message was deleted because it did not meet the criteria.')
 ADMIN_IDS = config.get('ADMIN_IDS', [])
+SILENT_ON_REPLY = config.get('SILENT_ON_REPLY', 'Silent mode enabled.')
+SILENT_OFF_REPLY = config.get('SILENT_OFF_REPLY', 'Silent mode disabled.')
+SILENT_USAGE_REPLY = config.get('SILENT_USAGE_REPLY', 'Usage: /silent on | /silent off')
+
+SILENT_SETTINGS_FILE = 'silent_settings.json'
+
+def load_silent_settings() -> dict:
+    try:
+        with open(SILENT_SETTINGS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_silent_settings(settings: dict) -> None:
+    with open(SILENT_SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f)
+
+silent_settings = load_silent_settings()
 
 # Load the list of words
 def load_allowed_words():
@@ -118,6 +136,19 @@ def delete_word(update: Update, context: CallbackContext) -> None:
         logger.error(f"Error in delete_word command: {e}")
         update.message.reply_text('An error occurred while deleting the word.')
 
+def silent(update: Update, context: CallbackContext) -> None:
+    chat_id = str(update.message.chat_id)
+    if not context.args or context.args[0].lower() not in ('on', 'off'):
+        update.message.reply_text(SILENT_USAGE_REPLY)
+        return
+
+    enabled = context.args[0].lower() == 'on'
+    silent_settings[chat_id] = enabled
+    save_silent_settings(silent_settings)
+
+    update.message.reply_text(SILENT_ON_REPLY if enabled else SILENT_OFF_REPLY)
+
+
 # Define the message handler
 def handle_message(update: Update, context: CallbackContext) -> None:
     message = update.message
@@ -132,7 +163,8 @@ def handle_message(update: Update, context: CallbackContext) -> None:
         if not any(word in message.text.lower() for word in allowed_words):
             logger.info("No allowed words found in message, deleting.")
             context.bot.delete_message(chat_id=message.chat_id, message_id=message.message_id)
-            context.bot.send_message(chat_id=message.chat_id, text=ON_DELETE_MESSAGE_REPLY)
+            if not silent_settings.get(str(message.chat_id), False):
+                context.bot.send_message(chat_id=message.chat_id, text=ON_DELETE_MESSAGE_REPLY)
             log_message = f"Deleted message from {message.from_user.username}: {message.text}"
             logger.info(log_message)
             notify_admins(context, log_message)
@@ -154,6 +186,7 @@ def main() -> None:
         dispatcher.add_handler(CommandHandler("add", add_word))
         dispatcher.add_handler(CommandHandler("list_words", list_words))
         dispatcher.add_handler(CommandHandler("delete_word", delete_word))
+        dispatcher.add_handler(CommandHandler("silent", silent))
         dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
         updater.start_polling()
