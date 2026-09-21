@@ -14,6 +14,7 @@ from bwbot.handlers import messages as message_handlers
 from bwbot.handlers import silent as silent_handlers
 from bwbot.handlers.extract import from_update
 from bwbot.services.admin import WordAdminService
+from bwbot.services.bans import BanService
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.words import WordRepository
 from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot, make_context, make_update
@@ -28,6 +29,7 @@ def make_deps(settings: Settings, words_repo: WordRepository, chat_settings_repo
         chat_settings=chat_settings_repo,
         moderation=ModerationService(settings, words_repo, chat_settings_repo),
         word_admin=WordAdminService(words_repo),
+        bans=BanService(settings),
     )
 
 
@@ -60,7 +62,7 @@ class TestAdminCommands:
 
         await admin_handlers.add_word(update, make_context(bot, ["двор"]), deps=deps)
 
-        assert [chat_id for chat_id, _ in bot.sent] == [300]
+        assert [chat_id for chat_id, _, _ in bot.sent] == [300]
         assert "boss" in bot.sent[0][1]
         assert "двор" in bot.sent[0][1]
 
@@ -128,7 +130,7 @@ class TestMessageHandler:
         update = make_update(BAD_TEXT, message_id=42, user_id=STRANGER_ID, username="vasya")
         await message_handlers.on_message(update, make_context(bot), deps=deps)
         assert bot.deleted == [(CHAT_ID, 42)]
-        assert (CHAT_ID, deps.settings.on_delete_reply) in bot.sent
+        assert (CHAT_ID, deps.settings.on_delete_reply, ()) in bot.sent
 
     async def test_allowed_message_is_left_alone(self, deps, bot: FakeBot):
         deps.words.add("гараж")

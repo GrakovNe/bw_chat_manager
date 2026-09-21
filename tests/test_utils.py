@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bwbot.utils import chunk_text, normalize_word
+from bwbot.utils import append_note, chunk_text, normalize_word
 
 
 def test_normalize_word():
@@ -45,3 +45,25 @@ def test_chunk_text_roundtrips_everything():
 def test_chunk_text_respects_limit(limit):
     body = "\n".join(f"line-{index}" for index in range(50))
     assert all(len(chunk) <= limit for chunk in chunk_text(body, limit=limit))
+
+
+def test_append_note_puts_note_behind_blank_line():
+    assert append_note("отчёт", "забанен") == "отчёт\n\nзабанен"
+
+
+def test_append_note_without_note_keeps_text():
+    assert append_note("отчёт", "") == "отчёт"
+
+
+def test_append_note_truncates_report_but_keeps_note():
+    result = append_note("x" * 100, "забанен", limit=40)
+    assert result.endswith("забанен")
+    assert len(result) == 40
+
+
+def test_append_note_drops_report_when_note_eats_the_limit():
+    assert append_note("отчёт", "n" * 50, limit=20) == "n" * 20
+
+
+def test_append_note_leaves_no_dangling_spaces():
+    assert append_note("a" * 8 + "   ", "note", limit=15) == "aaaaaaaa\n\nnote"

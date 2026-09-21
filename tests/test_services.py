@@ -10,40 +10,43 @@ from bwbot.services.admin import WordAdminService
 from bwbot.services.api import notify_all
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.words import WordRepository
-from conftest import ADMIN_ID, CHAT_ID, FakeBot
+from bwbot.telegram_api import TelegramApi
+from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot
 
 BAD_TEXT = "продам гараж в другом жк"
 GOOD_TEXT = "затопило двор у корпуса 1"
 
 
 class TestModerationService:
-    async def test_allowed_message_changes_nothing(self, deps, bot: FakeBot):
+    async def test_allowed_message_changes_nothing(self, deps, api, bot: FakeBot):
         deps.words.add("двор")
         decision = await deps.moderation.handle_message(
-            bot, chat_id=CHAT_ID, message_id=1, text=GOOD_TEXT
+            api, chat_id=CHAT_ID, message_id=1, text=GOOD_TEXT
         )
         assert decision.action is Action.ALLOW
         assert bot.deleted == []
         assert bot.sent == []
 
-    async def test_short_message_changes_nothing(self, deps, bot: FakeBot):
+    async def test_short_message_changes_nothing(self, deps, api, bot: FakeBot):
         decision = await deps.moderation.handle_message(
-            bot, chat_id=CHAT_ID, message_id=1, text="ок"
+            api, chat_id=CHAT_ID, message_id=1, text="ок"
         )
         assert decision.action is Action.IGNORE_SHORT
         assert bot.deleted == []
         assert bot.sent == []
 
-    async def test_reply_is_never_touched(self, deps, bot: FakeBot):
+    async def test_reply_is_never_touched(self, deps, api, bot: FakeBot):
         decision = await deps.moderation.handle_message(
-            bot, chat_id=CHAT_ID, message_id=1, text=BAD_TEXT, is_reply=True
+            api, chat_id=CHAT_ID, message_id=1, text=BAD_TEXT, is_reply=True
         )
         assert decision.action is Action.IGNORE_REPLY
         assert bot.deleted == []
 
-    async def test_disallowed_message_is_deleted_and_everyone_notified(self, deps, bot: FakeBot):
+    async def test_disallowed_message_is_deleted_and_everyone_notified(
+        self, deps, api, bot: FakeBot
+    ):
         decision = await deps.moderation.handle_message(
-            bot,
+            api,
             chat_id=CHAT_ID,
             message_id=7,
             text=BAD_TEXT,
@@ -51,29 +54,58 @@ class TestModerationService:
         )
         assert decision.action is Action.DELETE
         assert bot.deleted == [(CHAT_ID, 7)]
-        assert (CHAT_ID, deps.settings.on_delete_reply) in bot.sent
-        reports = [text for chat_id, text in bot.sent if chat_id == ADMIN_ID]
+        assert (CHAT_ID, deps.settings.on_delete_reply, ()) in bot.sent
+        reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
         assert len(reports) == 1
         assert "vasya" in reports[0]
         assert BAD_TEXT in reports[0]
 
-    async def test_silent_mode_skips_chat_reply_but_not_admin_report(self, deps, bot: FakeBot):
+    async def test_silent_mode_skips_chat_reply_but_not_admin_report(self, deps, api, bot: FakeBot):
         deps.chat_settings.set_silent(CHAT_ID, True)
         await deps.moderation.handle_message(
-            bot, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="vasya"
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="vasya"
         )
         assert bot.deleted == [(CHAT_ID, 7)]
-        assert [chat_id for chat_id, _ in bot.sent] == [ADMIN_ID]
+        assert [chat_id for chat_id, _, _ in bot.sent] == [ADMIN_ID]
+
+    async def test_admin_report_carries_ban_button(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text=BAD_TEXT,
+            user_label="vasya",
+            user_id=STRANGER_ID,
+        )
+        label = deps.settings.ban_button_label
+        reports = [buttons for chat_id, _, buttons in bot.sent if chat_id == ADMIN_ID]
+        assert reports == [((label, f"ban:{CHAT_ID}:{STRANGER_ID}"),)]
+
+    async def test_report_without_known_author_has_no_button(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="аноним"
+        )
+        reports = [buttons for chat_id, _, buttons in bot.sent if chat_id == ADMIN_ID]
+        assert reports == [()]
+
+    async def test_chat_reply_never_carries_the_button(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_id=STRANGER_ID
+        )
+        in_chat = [buttons for chat_id, _, buttons in bot.sent if chat_id == CHAT_ID]
+        assert in_chat == [()]
 
     async def test_admin_notification_failure_does_not_break_handling(
         self, settings: Settings, words_repo: WordRepository, chat_settings_repo
     ):
         bot = FakeBot(fail_sending_to={ADMIN_ID})
         service = ModerationService(settings, words_repo, chat_settings_repo)
-        decision = await service.handle_message(bot, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT)
+        decision = await service.handle_message(
+            TelegramApi(bot), chat_id=CHAT_ID, message_id=7, text=BAD_TEXT
+        )
         assert decision.action is Action.DELETE
         assert bot.deleted == [(CHAT_ID, 7)]
-        assert (CHAT_ID, settings.on_delete_reply) in bot.sent
+        assert (CHAT_ID, settings.on_delete_reply, ()) in bot.sent
 
 
 class TestWordAdminService:
@@ -113,9 +145,9 @@ class TestWordAdminService:
 
 async def test_notify_all_swallows_partial_failures():
     bot = FakeBot(fail_sending_to={ADMIN_ID})
-    failures = await notify_all(bot, [ADMIN_ID, 300], "привет")
+    failures = await notify_all(TelegramApi(bot), [ADMIN_ID, 300], "привет")
     assert len(failures) == 1
-    assert bot.sent == [(300, "привет")]
+    assert bot.sent == [(300, "привет", ())]
 
 
 @pytest.mark.parametrize("word", ["", None])

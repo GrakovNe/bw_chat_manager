@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from bwbot.callbacks import BanTarget, ban_button
 from bwbot.config import Settings
 from bwbot.moderation import Decision, decide
-from bwbot.services.api import ChatApi, notify_all
+from bwbot.services.api import Button, ChatApi, notify_all
 from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.words import WordRepository
 
@@ -29,6 +30,7 @@ class ModerationService:
         text: str | None,
         is_reply: bool = False,
         user_label: str = "неизвестный",
+        user_id: int | None = None,
     ) -> Decision:
         decision = decide(
             text,
@@ -46,7 +48,13 @@ class ModerationService:
 
         report = f"Удалено в чате {chat_id} от {user_label}: {text}"
         logger.info(report)
-        failures = await notify_all(api, self.settings.admin_ids, report)
+        # Кнопка есть только если знаем, кого банить: у анонимных постов канала
+        # автора нет, и банить некого.
+        buttons: tuple[Button, ...] = ()
+        if user_id is not None:
+            target = BanTarget(chat_id=chat_id, user_id=user_id)
+            buttons = (ban_button(target, self.settings.ban_button_label),)
+        failures = await notify_all(api, self.settings.admin_ids, report, buttons)
         for failure in failures:
             logger.warning("Не удалось уведомить администраторов: %s", failure)
 

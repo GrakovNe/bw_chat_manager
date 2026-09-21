@@ -27,6 +27,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE, *, deps
         text=incoming.text,
         is_reply=incoming.is_reply,
         user_label=incoming.user_label,
+        user_id=incoming.user_id,
     )
     logger.info(
         "chat=%s msg=%s action=%s word=%s",

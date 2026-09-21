@@ -18,6 +18,11 @@ DEFAULT_SILENT_ON_REPLY = "Тихий режим включён. Бот не б�
 DEFAULT_SILENT_OFF_REPLY = "Тихий режим выключен. Бот будет отправлять сообщения об удалении."
 DEFAULT_SILENT_USAGE_REPLY = "Использование: /silent on | /silent off"
 DEFAULT_NOT_ADMIN_REPLY = "Эта команда доступна только администраторам."
+DEFAULT_BAN_BUTTON_LABEL = "BAN"
+DEFAULT_BAN_DONE_REPLY = "Забанен и удалён из чата."
+DEFAULT_BAN_FAILED_REPLY = "Не удалось забанить:"
+DEFAULT_BAN_ADMIN_REPLY = "Администратора не банят."
+DEFAULT_BAN_BROKEN_REPLY = "Не понимаю эту кнопку — она устарела."
 
 WORDS_FILENAME = "bw_buildings.txt"
 CHAT_SETTINGS_FILENAME = "chat_settings.json"
@@ -38,6 +43,11 @@ class Settings:
     silent_off_reply: str = DEFAULT_SILENT_OFF_REPLY
     silent_usage_reply: str = DEFAULT_SILENT_USAGE_REPLY
     not_admin_reply: str = DEFAULT_NOT_ADMIN_REPLY
+    ban_button_label: str = DEFAULT_BAN_BUTTON_LABEL
+    ban_done_reply: str = DEFAULT_BAN_DONE_REPLY
+    ban_failed_reply: str = DEFAULT_BAN_FAILED_REPLY
+    ban_admin_reply: str = DEFAULT_BAN_ADMIN_REPLY
+    ban_broken_reply: str = DEFAULT_BAN_BROKEN_REPLY
     log_level: str = "INFO"
 
     def __post_init__(self) -> None:
@@ -84,6 +94,11 @@ class Settings:
             silent_off_reply=env.get("SILENT_OFF_REPLY") or DEFAULT_SILENT_OFF_REPLY,
             silent_usage_reply=env.get("SILENT_USAGE_REPLY") or DEFAULT_SILENT_USAGE_REPLY,
             not_admin_reply=env.get("NOT_ADMIN_REPLY") or DEFAULT_NOT_ADMIN_REPLY,
+            ban_button_label=env.get("BAN_BUTTON_LABEL") or DEFAULT_BAN_BUTTON_LABEL,
+            ban_done_reply=env.get("BAN_DONE_REPLY") or DEFAULT_BAN_DONE_REPLY,
+            ban_failed_reply=env.get("BAN_FAILED_REPLY") or DEFAULT_BAN_FAILED_REPLY,
+            ban_admin_reply=env.get("BAN_ADMIN_REPLY") or DEFAULT_BAN_ADMIN_REPLY,
+            ban_broken_reply=env.get("BAN_BROKEN_REPLY") or DEFAULT_BAN_BROKEN_REPLY,
             log_level=(env.get("LOG_LEVEL") or "INFO").upper(),
         )
 

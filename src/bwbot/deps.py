@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from bwbot.config import ConfigError, Settings
 from bwbot.services.admin import WordAdminService
+from bwbot.services.bans import BanService
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.words import WordRepository
@@ -19,6 +20,7 @@ class Deps:
     chat_settings: ChatSettingsRepository
     moderation: ModerationService
     word_admin: WordAdminService
+    bans: BanService
 
     @classmethod
     def build(cls, settings: Settings) -> Deps:
@@ -40,4 +42,5 @@ class Deps:
             chat_settings=chat_settings,
             moderation=ModerationService(settings, words, chat_settings),
             word_admin=WordAdminService(words),
+            bans=BanService(settings),
         )
