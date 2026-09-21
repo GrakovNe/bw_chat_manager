@@ -105,6 +105,17 @@ class TestBanCallback:
         assert bot.banned == []
         assert bot.answers == [("cb-1", deps.settings.ban_broken_reply)]
 
+    async def test_stale_button_on_admin_is_refused(self, deps, bot: FakeBot) -> None:
+        # Отчёт мог уйти до запрета банить администраторов — кнопка на нём всё ещё есть.
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=REPORT_TEXT)
+        update = make_callback(ban_data(user_id=ADMIN_ID), report=report)
+
+        await ban_handlers.on_callback(update, make_context(bot), deps=deps)
+
+        assert bot.banned == []
+        assert bot.edited == []
+        assert bot.answers == [("cb-1", deps.settings.ban_admin_reply)]
+
     async def test_failed_ban_keeps_the_button(self, deps, bot: FakeBot) -> None:
         bot.fail_banning = (CHAT_ID, STRANGER_ID)
         bot.ban_error = "Forbidden: bot is not administrator"

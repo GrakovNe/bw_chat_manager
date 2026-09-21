@@ -81,6 +81,18 @@ class TestModerationService:
         reports = [buttons for chat_id, _, buttons in bot.sent if chat_id == ADMIN_ID]
         assert reports == [((label, f"ban:{CHAT_ID}:{STRANGER_ID}"),)]
 
+    async def test_report_about_admin_has_no_button(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text=BAD_TEXT,
+            user_label="boss",
+            user_id=ADMIN_ID,
+        )
+        reports = [buttons for chat_id, _, buttons in bot.sent if chat_id == ADMIN_ID]
+        assert reports == [()]
+
     async def test_report_without_known_author_has_no_button(self, deps, api, bot: FakeBot):
         await deps.moderation.handle_message(
             api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="аноним"

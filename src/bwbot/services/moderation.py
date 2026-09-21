@@ -49,9 +49,10 @@ class ModerationService:
         report = f"Удалено в чате {chat_id} от {user_label}: {text}"
         logger.info(report)
         # Кнопка есть только если знаем, кого банить: у анонимных постов канала
-        # автора нет, и банить некого.
+        # автора нет, и банить некого. Администраторов — получателей отчёта — кнопка
+        # не предлагает вовсе: банить своих нельзя.
         buttons: tuple[Button, ...] = ()
-        if user_id is not None:
+        if user_id is not None and not self.settings.is_admin(user_id):
             target = BanTarget(chat_id=chat_id, user_id=user_id)
             buttons = (ban_button(target, self.settings.ban_button_label),)
         failures = await notify_all(api, self.settings.admin_ids, report, buttons)
