@@ -83,3 +83,27 @@ def test_is_admin():
     assert settings.is_admin(7) is True
     assert settings.is_admin(8) is False
     assert settings.is_admin(None) is False
+
+
+def test_literal_newline_is_unescaped():
+    settings = from_values(ON_DELETE_REPLY="раз\\n\\nдва")
+    assert settings.on_delete_reply == "раз\n\nдва"
+
+
+def test_real_newline_survives():
+    assert from_values(ON_DELETE_REPLY="раз\nдва").on_delete_reply == "раз\nдва"
+
+
+def test_crlf_and_tab_are_unescaped():
+    assert from_values(SILENT_ON_REPLY="а\\r\\nб\\tc").silent_on_reply == "а\nб\tc"
+
+
+def test_unescaping_keeps_cyrillic():
+    settings = from_values(NOT_ADMIN_REPLY="Только админам\\n@maxgrakov")
+    assert settings.not_admin_reply == "Только админам\n@maxgrakov"
+
+
+def test_every_text_setting_is_unescaped():
+    settings = from_values(BAN_DONE_REPLY="готово\\n!", BAN_FAILED_REPLY="не вышло:\\nпричина")
+    assert settings.ban_done_reply == "готово\n!"
+    assert settings.ban_failed_reply == "не вышло:\nпричина"

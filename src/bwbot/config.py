@@ -89,18 +89,29 @@ class Settings:
             min_length=min_length,
             admin_ids=admin_ids,
             data_dir=Path(env.get("DATA_DIR") or DEFAULT_DATA_DIR),
-            on_delete_reply=env.get("ON_DELETE_REPLY") or DEFAULT_ON_DELETE_REPLY,
-            silent_on_reply=env.get("SILENT_ON_REPLY") or DEFAULT_SILENT_ON_REPLY,
-            silent_off_reply=env.get("SILENT_OFF_REPLY") or DEFAULT_SILENT_OFF_REPLY,
-            silent_usage_reply=env.get("SILENT_USAGE_REPLY") or DEFAULT_SILENT_USAGE_REPLY,
-            not_admin_reply=env.get("NOT_ADMIN_REPLY") or DEFAULT_NOT_ADMIN_REPLY,
-            ban_button_label=env.get("BAN_BUTTON_LABEL") or DEFAULT_BAN_BUTTON_LABEL,
-            ban_done_reply=env.get("BAN_DONE_REPLY") or DEFAULT_BAN_DONE_REPLY,
-            ban_failed_reply=env.get("BAN_FAILED_REPLY") or DEFAULT_BAN_FAILED_REPLY,
-            ban_admin_reply=env.get("BAN_ADMIN_REPLY") or DEFAULT_BAN_ADMIN_REPLY,
-            ban_broken_reply=env.get("BAN_BROKEN_REPLY") or DEFAULT_BAN_BROKEN_REPLY,
+            on_delete_reply=_text(env, "ON_DELETE_REPLY", DEFAULT_ON_DELETE_REPLY),
+            silent_on_reply=_text(env, "SILENT_ON_REPLY", DEFAULT_SILENT_ON_REPLY),
+            silent_off_reply=_text(env, "SILENT_OFF_REPLY", DEFAULT_SILENT_OFF_REPLY),
+            silent_usage_reply=_text(env, "SILENT_USAGE_REPLY", DEFAULT_SILENT_USAGE_REPLY),
+            not_admin_reply=_text(env, "NOT_ADMIN_REPLY", DEFAULT_NOT_ADMIN_REPLY),
+            ban_button_label=_text(env, "BAN_BUTTON_LABEL", DEFAULT_BAN_BUTTON_LABEL),
+            ban_done_reply=_text(env, "BAN_DONE_REPLY", DEFAULT_BAN_DONE_REPLY),
+            ban_failed_reply=_text(env, "BAN_FAILED_REPLY", DEFAULT_BAN_FAILED_REPLY),
+            ban_admin_reply=_text(env, "BAN_ADMIN_REPLY", DEFAULT_BAN_ADMIN_REPLY),
+            ban_broken_reply=_text(env, "BAN_BROKEN_REPLY", DEFAULT_BAN_BROKEN_REPLY),
             log_level=(env.get("LOG_LEVEL") or "INFO").upper(),
         )
+
+
+def _text(env: Mapping[str, str], key: str, default: str) -> str:
+    r"""Текст настройки: переносы строк в окружении приходят литеральными.
+
+    `.env` и `EnvironmentFile` systemd не умеют многострочные значения, поэтому
+    администраторы пишут `\n` руками — разворачиваем их обратно в настоящие
+    переносы.
+    """
+    raw = env.get(key) or default
+    return raw.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\t", "\t")
 
 
 def _parse_int_list(raw: str) -> list[int]:
