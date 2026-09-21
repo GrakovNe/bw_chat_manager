@@ -52,11 +52,15 @@ class JsonStore:
             self._write(data)
 
     def mutate(self, default: Any, updater: Callable[[Any], Any]) -> Any:
-        """Читает, меняет на месте и пишет под одним локом. Возвращает результат updater."""
+        """Читает, меняет и пишет под одним локом.
+
+        `updater` меняет данные на месте либо возвращает новый объект целиком.
+        Возвращает результат `updater`.
+        """
         with self._lock:
             data = self._read(default)
             result = updater(data)
-            self._write(data)
+            self._write(data if result is None else result)
             return result
 
     def _read(self, default: Any) -> Any:

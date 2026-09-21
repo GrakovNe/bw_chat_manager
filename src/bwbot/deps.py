@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from bwbot.config import ConfigError, Settings
@@ -28,6 +29,11 @@ class Deps:
             )
         words = WordRepository(settings.words_file)
         chat_settings = ChatSettingsRepository(settings.chat_settings_file)
+        migrated = chat_settings.migrate()
+        if migrated:
+            logging.getLogger(__name__).info(
+                "Перенесли тихий режим из старого формата: %s чат(ов)", migrated
+            )
         return cls(
             settings=settings,
             words=words,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from bwbot.storage.chat_settings import ChatSettingsRepository
@@ -70,6 +72,39 @@ class TestChatSettingsRepository:
         chat_settings_repo.path.write_text('{"-100": "не словарь"}', encoding="utf-8")
         assert chat_settings_repo.is_silent(-100) is False
 
+    def test_flat_true_from_old_version_keeps_silent_mode(self, chat_settings_repo):
+        chat_settings_repo.path.write_text('{"-100": true}', encoding="utf-8")
+        assert chat_settings_repo.is_silent(-100) is True
+
+    def test_flat_false_from_old_version(self, chat_settings_repo):
+        chat_settings_repo.path.write_text('{"-100": false}', encoding="utf-8")
+        assert chat_settings_repo.is_silent(-100) is False
+
+    def test_set_silent_keeps_other_flat_entries(self, chat_settings_repo):
+        chat_settings_repo.path.write_text('{"-100": true, "-200": false}', encoding="utf-8")
+        chat_settings_repo.set_silent(-200, True)
+        assert chat_settings_repo.is_silent(-100) is True
+        assert chat_settings_repo.is_silent(-200) is True
+        assert chat_settings_repo.is_silent(-300) is False
+
+    def test_migrate_rewrites_old_format(self, chat_settings_repo):
+        chat_settings_repo.path.write_text('{"-100": true, "-200": false}', encoding="utf-8")
+        assert chat_settings_repo.migrate() == 2
+        assert json.loads(chat_settings_repo.path.read_text(encoding="utf-8")) == {
+            "-100": {"silent": True},
+            "-200": {"silent": False},
+        }
+
+    def test_migrate_is_noop_on_new_format(self, chat_settings_repo):
+        chat_settings_repo.set_silent(-100, True)
+        assert chat_settings_repo.migrate() == 0
+
+    def test_non_dict_root_is_tolerated(self, chat_settings_repo):
+        chat_settings_repo.path.write_text("[]", encoding="utf-8")
+        assert chat_settings_repo.is_silent(-100) is False
+        chat_settings_repo.set_silent(-100, True)
+        assert chat_settings_repo.is_silent(-100) is True
+
 
 class TestJsonStore:
     def test_missing_file_returns_default(self, tmp_path):
@@ -101,3 +136,9 @@ class TestJsonStore:
         store.mutate({}, updater)
         store.mutate({}, updater)
         assert store.load({}) == {"count": 2}
+
+    def test_mutate_can_replace_whole_document(self, tmp_path):
+        store = JsonStore(tmp_path / "state.json")
+        store.save(["старый формат, а не словарь"])
+        store.mutate({}, lambda data: {"fixed": True})
+        assert store.load({}) == {"fixed": True}
