@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
-from bwbot.storage.json_store import JsonStore
+from bwbot.storage.json_store import CorruptStoreError, JsonStore
+
+logger = logging.getLogger(__name__)
 
 SILENT_KEY = "silent"
 
@@ -38,7 +41,7 @@ class ChatSettingsRepository:
         return self._store.path
 
     def get(self, chat_id: int) -> dict[str, Any]:
-        data = _normalize_document(self._store.load({}))
+        data = _normalize_document(self._load())
         return data.get(str(chat_id), {})
 
     def is_silent(self, chat_id: int) -> bool:
@@ -54,11 +57,11 @@ class ChatSettingsRepository:
             normalized[key] = entry
             return normalized
 
-        self._store.mutate({}, updater)
+        self._mutate(updater)
 
     def migrate(self) -> int:
         """Приводит файл к новому формату. Возвращает число исправленных записей."""
-        raw = self._store.load({})
+        raw = self._load()
         if not isinstance(raw, dict):
             return 0
         normalized = _normalize_document(raw)
@@ -66,3 +69,24 @@ class ChatSettingsRepository:
         if changed:
             self._store.save(normalized)
         return changed
+
+    def _load(self) -> Any:
+        """Битый файл настроек не должен останавливать модерацию: помним пустоту.
+
+        Сам файл не трогаем — пусть останется для разбора; первая же запись
+        перепишет его начисто.
+        """
+        try:
+            return self._store.load({})
+        except CorruptStoreError:
+            logger.exception("Файл настроек чатов повреждён: %s", self._store.path)
+            return {}
+
+    def _mutate(self, updater) -> None:
+        try:
+            self._store.mutate({}, updater)
+        except CorruptStoreError:
+            logger.exception(
+                "Файл настроек чатов повреждён, записываем заново: %s", self._store.path
+            )
+            self._store.save(updater({}))

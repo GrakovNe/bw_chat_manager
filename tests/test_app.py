@@ -72,6 +72,15 @@ def test_build_migrates_the_old_chat_settings_format(app_settings):
     assert document == {"-1001": {"silent": True}}
 
 
+def test_build_survives_corrupt_chat_settings(app_settings):
+    """Битый файл настроек чатов не должен валить сервис на старте."""
+    app_settings.chat_settings_file.write_text("{ это не json", encoding="utf-8")
+
+    deps = Deps.build(app_settings)
+
+    assert deps.chat_settings.is_silent(-1001) is False
+
+
 def test_build_requires_the_words_file(tmp_path):
     settings = Settings(token=TOKEN, admin_ids=frozenset(), data_dir=tmp_path)
     with pytest.raises(ConfigError, match="Нет файла слов"):

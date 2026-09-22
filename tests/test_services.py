@@ -177,6 +177,19 @@ def test_add_word_rejects_blank(word, words_repo: WordRepository):
     assert WordAdminService(words_repo).add_word(word).ok is False
 
 
+class TestCorruptChatSettings:
+    async def test_moderation_keeps_working_without_settings_file(self, deps, api, bot: FakeBot):
+        deps.chat_settings.path.write_text("{ это не json", encoding="utf-8")
+
+        decision = await deps.moderation.handle_message(
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="vasya"
+        )
+
+        assert decision.action is Action.DELETE
+        assert bot.deleted == [(CHAT_ID, 7)]
+        assert ADMIN_ID in [chat_id for chat_id, _, _ in bot.sent]
+
+
 class TestDeleteFailure:
     async def test_failed_delete_is_reported_to_admins(self, deps, api, bot: FakeBot):
         """Бот без прав на удаление бессилен, но молчать об этом не должен."""

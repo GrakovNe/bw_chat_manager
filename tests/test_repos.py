@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 import pytest
@@ -107,6 +108,24 @@ class TestChatSettingsRepository:
         assert chat_settings_repo.is_silent(-100) is False
         chat_settings_repo.set_silent(-100, True)
         assert chat_settings_repo.is_silent(-100) is True
+
+    def test_corrupted_file_degrades_to_defaults(self, chat_settings_repo, caplog):
+        chat_settings_repo.path.write_text("{ это не json", encoding="utf-8")
+
+        with caplog.at_level(logging.ERROR, logger="bwbot.storage.chat_settings"):
+            assert chat_settings_repo.is_silent(-1001) is False
+
+        assert "повреждён" in caplog.text
+
+    def test_corrupted_file_is_rewritten_by_next_change(self, chat_settings_repo):
+        chat_settings_repo.path.write_text("[1, 2", encoding="utf-8")
+
+        chat_settings_repo.set_silent(-1001, True)
+
+        assert chat_settings_repo.is_silent(-1001) is True
+        assert json.loads(chat_settings_repo.path.read_text(encoding="utf-8")) == {
+            "-1001": {"silent": True}
+        }
 
     def test_migrate_on_non_dict_root_changes_nothing(self, chat_settings_repo):
         chat_settings_repo.path.write_text("[1, 2, 3]", encoding="utf-8")
