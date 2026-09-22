@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, LinkPreviewOptions
 from telegram.error import TelegramError
 
 from bwbot.services.api import ApiError, Button
@@ -19,6 +19,11 @@ def _markup(buttons: Sequence[Button]) -> InlineKeyboardMarkup | None:
     )
 
 
+# Отчёты содержат текст нарушителя: чужая ссылка не должна разрастаться
+# картинкой ни в чате, ни в личных сообщениях администраторам.
+_NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
+
+
 class TelegramApi:
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
@@ -30,7 +35,12 @@ class TelegramApi:
             raise ApiError(str(exc)) from exc
 
     async def send_message(self, chat_id: int, text: str, buttons: Sequence[Button] = ()) -> None:
-        await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=_markup(buttons))
+        await self.bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            reply_markup=_markup(buttons),
+            link_preview_options=_NO_PREVIEW,
+        )
 
     async def edit_message_text(
         self,

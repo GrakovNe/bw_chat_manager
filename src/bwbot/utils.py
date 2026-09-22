@@ -28,6 +28,17 @@ def append_note(text: str, note: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> st
     return f"{text[:keep].rstrip()}{separator}{note}"
 
 
+def clip(text: str, limit: int) -> str:
+    """Обрезает текст под лимит, помечая место обрезки многоточием."""
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    if limit == 1:
+        return "…"
+    return f"{text[: limit - 1].rstrip()}…"
+
+
 def chunk_text(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
     """Режет текст на куски, не разрывая строки посередине, в предел лимита Telegram."""
     if len(text) <= limit:

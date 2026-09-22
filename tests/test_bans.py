@@ -129,6 +129,19 @@ class TestBanCallback:
         assert len(bot.answers) == 1
         assert "not administrator" in bot.answers[0][1]
 
+    async def test_unreadable_report_does_not_undo_the_ban(self, deps, bot: FakeBot) -> None:
+        """Telegram отказался править старое сообщение — бан от этого не отменяется."""
+        bot.fail_editing = True
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=REPORT_TEXT)
+
+        await ban_handlers.on_callback(
+            make_callback(ban_data(), report=report), make_context(bot), deps=deps
+        )
+
+        assert bot.banned == [(CHAT_ID, STRANGER_ID)]
+        assert bot.answers == [("cb-1", deps.settings.ban_done_reply)]
+        assert bot.edited == []
+
     async def test_report_without_text_is_still_banned(self, deps, bot: FakeBot) -> None:
         report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=None)
 

@@ -157,3 +157,13 @@ def test_recent_posts_file_lives_in_data_dir(tmp_path):
     settings = Settings.from_env({"TELEGRAM_TOKEN": "1:a", "DATA_DIR": str(tmp_path)})
     assert settings.recent_posts_file == tmp_path / "recent_posts.json"
     assert settings.recent_posts_file != settings.chat_settings_file
+
+
+@pytest.mark.parametrize("value", ["verbose", "debu", "TRACE"])
+def test_unknown_log_level_is_rejected(value):
+    with pytest.raises(ConfigError, match="LOG_LEVEL"):
+        from_values(LOG_LEVEL=value)
+
+
+def test_log_level_is_case_insensitive():
+    assert from_values(LOG_LEVEL="warning").log_level == "WARNING"

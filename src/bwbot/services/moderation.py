@@ -11,13 +11,18 @@ from bwbot.callbacks import BanTarget, DeleteTarget, ban_button, delete_button
 from bwbot.config import Settings
 from bwbot.dedupe import find_repeat
 from bwbot.moderation import Action, Decision, decide
-from bwbot.services.api import Button, ChatApi, notify_all
+from bwbot.services.api import ApiError, Button, ChatApi, notify_all
 from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.recent_posts import RecentPostsRepository
 from bwbot.storage.words import WordRepository
-from bwbot.utils import human_age
+from bwbot.utils import TELEGRAM_MESSAGE_LIMIT, clip, human_age
 
 logger = logging.getLogger(__name__)
+
+# Сколько текста нарушителя попадает в отчёт. Остальное место нужно шапке,
+# пометке о действиях администратора и кнопке — иначе Telegram отклонит
+# сообщение, и администраторы не узнают об удалении вовсе.
+REPORT_TEXT_BUDGET = 3000
 
 
 @dataclass
@@ -58,12 +63,20 @@ class ModerationService:
                 )
             return decision
 
-        await api.delete_message(chat_id, message_id)
+        try:
+            await api.delete_message(chat_id, message_id)
+        except ApiError as exc:
+            # Без прав на удаление бот бессилен, но молчать хуже, чем сказать.
+            logger.error("не удалось удалить сообщение %s в чате %s: %s", message_id, chat_id, exc)
+            await self._notify_admins(
+                api, f"Не удалось удалить сообщение {message_id} в чате {chat_id}: {exc}"
+            )
+            return decision
 
         if not self.chat_settings.is_silent(chat_id):
             await api.send_message(chat_id, self.settings.on_delete_reply)
 
-        report = f"Удалено в чате {chat_id} от {user_label}: {text}"
+        report = f"Удалено в чате {chat_id} от {user_label}: {clip(text or '', REPORT_TEXT_BUDGET)}"
         logger.info(report)
         # Кнопка есть только если знаем, кого банить: у анонимных постов канала
         # автора нет, и банить некого. Администраторов — получателей отчёта — кнопка
@@ -72,11 +85,15 @@ class ModerationService:
         if user_id is not None and not self.settings.is_admin(user_id):
             target = BanTarget(chat_id=chat_id, user_id=user_id)
             buttons = (ban_button(target, self.settings.ban_button_label),)
-        failures = await notify_all(api, self.settings.admin_ids, report, buttons)
+        await self._notify_admins(api, report, buttons)
+        return decision
+
+    async def _notify_admins(
+        self, api: ChatApi, text: str, buttons: tuple[Button, ...] = ()
+    ) -> None:
+        failures = await notify_all(api, self.settings.admin_ids, text, buttons)
         for failure in failures:
             logger.warning("Не удалось уведомить администраторов: %s", failure)
-
-        return decision
 
     async def _report_repeat(
         self,
@@ -105,12 +122,15 @@ class ModerationService:
         if repeat is None:
             return
 
-        report = self.settings.dup_report.format(
-            chat_id=chat_id,
-            user_label=user_label,
-            text=text,
-            matched_age=human_age(repeat.posted_at, now),
-            score=round(repeat.score * 100),
+        report = clip(
+            self.settings.dup_report.format(
+                chat_id=chat_id,
+                user_label=user_label,
+                text=clip(text, REPORT_TEXT_BUDGET),
+                matched_age=human_age(repeat.posted_at, now),
+                score=round(repeat.score * 100),
+            ),
+            TELEGRAM_MESSAGE_LIMIT,
         )
         logger.info(
             "repeat suspected: chat=%s user=%s message=%s matched=%s score=%.2f",
@@ -122,6 +142,4 @@ class ModerationService:
         )
         target = DeleteTarget(chat_id=chat_id, message_id=message_id)
         buttons = (delete_button(target, self.settings.dup_delete_label),)
-        failures = await notify_all(api, self.settings.admin_ids, report, buttons)
-        for failure in failures:
-            logger.warning("Не удалось сообщить о повторе: %s", failure)
+        await self._notify_admins(api, report, buttons)

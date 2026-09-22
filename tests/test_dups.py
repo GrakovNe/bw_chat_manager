@@ -12,11 +12,13 @@ from bwbot.services.moderation import ModerationService
 from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.recent_posts import RecentPostsRepository
 from bwbot.storage.words import WordRepository
+from bwbot.utils import TELEGRAM_MESSAGE_LIMIT
 from conftest import (
     ADMIN_ID,
     CHAT_ID,
     STRANGER_ID,
     FakeBot,
+    FakeCallbackUpdate,
     FakeClock,
     FakeMessage,
     make_callback,
@@ -186,6 +188,19 @@ class TestRepeatReport:
 
         assert not decision.deletes
 
+    async def test_huge_copy_is_reported_within_telegram_limit(self, deps, api, bot: FakeBot):
+        long_copy = "продам гараж в корпусе 3 " + "детали объявления " * 1200
+
+        await post(deps, api, long_copy, message_id=1)
+        await post(deps, api, long_copy, message_id=2)
+
+        reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
+        assert len(reports) == 1
+        assert len(reports[0]) <= TELEGRAM_MESSAGE_LIMIT
+        # Обрезаем текст нарушителя, а не отчёт: хвост шаблона должен остаться.
+        assert "…" in reports[0]
+        assert "совпадение" in reports[0].splitlines()[-1]
+
 
 class TestDeleteButton:
     async def test_admin_press_deletes_the_message(self, deps, bot: FakeBot):
@@ -249,6 +264,26 @@ class TestDeleteButton:
         )
 
         assert bot.deleted == [(CHAT_ID, 42)]
+        assert bot.edited == []
+
+    async def test_callback_query_absent_is_ignored(self, deps, bot: FakeBot):
+        await delete_handlers.on_callback(
+            FakeCallbackUpdate(callback_query=None), make_context(bot), deps=deps
+        )
+
+        assert bot.deleted == []
+        assert bot.answers == []
+
+    async def test_unreadable_report_does_not_undo_the_delete(self, deps, bot: FakeBot):
+        bot.fail_editing = True
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Подозрение на повтор")
+
+        await delete_handlers.on_callback(
+            make_callback(delete_data(), report=report), make_context(bot), deps=deps
+        )
+
+        assert bot.deleted == [(CHAT_ID, 42)]
+        assert bot.answers == [("cb-1", deps.settings.dup_deleted_reply)]
         assert bot.edited == []
 
     async def test_callback_without_message_is_still_deleted(self, deps, bot: FakeBot):

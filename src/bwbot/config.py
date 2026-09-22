@@ -40,6 +40,9 @@ CHAT_SETTINGS_FILENAME = "chat_settings.json"
 RECENT_POSTS_FILENAME = "recent_posts.json"
 
 
+LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+
+
 class ConfigError(RuntimeError):
     """Конфигурация некорректна или не может быть загружена."""
 
@@ -141,8 +144,16 @@ class Settings:
                 env, "DUP_DELETE_DONE_NOTE", DEFAULT_DUP_DELETE_DONE_NOTE, NOTE_FIELDS
             ),
             dup_broken_reply=_text(env, "DUP_BROKEN_REPLY", DEFAULT_DUP_BROKEN_REPLY),
-            log_level=(env.get("LOG_LEVEL") or "INFO").upper(),
+            log_level=_log_level(env),
         )
+
+
+def _log_level(env: Mapping[str, str]) -> str:
+    raw = (env.get("LOG_LEVEL") or "INFO").upper()
+    if raw not in LOG_LEVELS:
+        names = ", ".join(sorted(LOG_LEVELS))
+        raise ConfigError(f"LOG_LEVEL должен быть одним из: {names}, получено {raw!r}")
+    return raw
 
 
 def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:

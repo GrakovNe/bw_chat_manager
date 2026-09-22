@@ -56,6 +56,20 @@ class TestSimilarity:
         base = " ".join(f"слово{index}" for index in range(120))
         assert similarity(base, f"{base} ещё слово") > 0.95
 
+    def test_equal_prefix_beyond_compare_limit_reads_as_identical(self) -> None:
+        left = "продам гараж " + "x" * 700 + "первый"
+        right = "продам гараж " + "x" * 700 + "второй"
+        assert similarity(normalize(left), normalize(right)) == 1.0
+
+    def test_threshold_never_hides_a_real_repeat(self) -> None:
+        left = normalize("продам гараж в корпусе 3 срочно")
+        right = normalize("Продам Гараж в Корпусе 3 срочно!!!")
+        assert similarity(left, right, threshold=0.9) >= 0.9
+
+    def test_threshold_cuts_obviously_different_long_texts(self) -> None:
+        # quick_ratio — верхняя оценка: раз она нулевая, точное сравнение не нужно.
+        assert similarity("а" * 4000, "б" * 4000, threshold=0.9) == 0.0
+
 
 class TestFindRepeat:
     def test_no_posts(self) -> None:
@@ -105,6 +119,18 @@ class TestFindRepeat:
     def test_needle_without_letters(self, text: str) -> None:
         posts = [stored("продам гараж")]
         assert find_repeat(posts, text, now=NOW) is None
+
+    def test_long_copy_is_still_found(self) -> None:
+        long_text = "продам гараж в корпусе 3 " + "детали объявления " * 300
+        repeat = find_repeat(
+            [stored(long_text)],
+            long_text.upper(),
+            now=NOW,
+            window_days=7,
+            threshold=0.9,
+        )
+        assert repeat is not None
+        assert repeat.message_id == 1
 
     def test_broken_stored_text_is_ignored(self) -> None:
         posts = [StoredPost(message_id=1, posted_at=NOW - DAY, text="")]

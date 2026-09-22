@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bwbot.utils import append_note, chunk_text, human_age, normalize_word
+from bwbot.utils import append_note, chunk_text, clip, human_age, normalize_word
 
 
 def test_normalize_word():
@@ -90,3 +90,27 @@ def test_human_age(days, expected):
 
 def test_human_age_clock_skew_is_today():
     assert human_age(1_000_100, 1_000_000) == "сегодня"
+
+
+class TestClip:
+    def test_short_text_is_untouched(self):
+        assert clip("гараж", limit=100) == "гараж"
+
+    def test_text_exactly_at_limit_is_untouched(self):
+        assert clip("abcde", limit=5) == "abcde"
+
+    def test_long_text_is_clipped_with_ellipsis(self):
+        result = clip("a" * 100, limit=10)
+        assert len(result) == 10
+        assert result.endswith("…")
+        assert result.startswith("a")
+
+    def test_trailing_space_is_trimmed_before_ellipsis(self):
+        assert clip("word " * 10, limit=8) == "word wo…"
+
+    @pytest.mark.parametrize("limit", [0, -5])
+    def test_non_positive_limit_yields_empty_string(self, limit):
+        assert clip("текст", limit=limit) == ""
+
+    def test_limit_of_one_is_just_ellipsis(self):
+        assert clip("текст", limit=1) == "…"

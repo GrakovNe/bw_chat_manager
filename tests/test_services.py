@@ -11,6 +11,7 @@ from bwbot.services.api import notify_all
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.words import WordRepository
 from bwbot.telegram_api import TelegramApi
+from bwbot.utils import TELEGRAM_MESSAGE_LIMIT
 from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot
 
 BAD_TEXT = "продам гараж в другом жк"
@@ -135,6 +136,11 @@ class TestWordAdminService:
         assert result.ok is False
         assert "/add" in result.message
 
+    def test_delete_without_argument_shows_usage(self, words_repo: WordRepository):
+        result = WordAdminService(words_repo).delete_word(None)
+        assert result.ok is False
+        assert "/delete_word" in result.message
+
     def test_add_duplicate(self, words_repo: WordRepository):
         service = WordAdminService(words_repo)
         assert service.add_word("двор").ok is True
@@ -169,3 +175,70 @@ async def test_notify_all_swallows_partial_failures():
 @pytest.mark.parametrize("word", ["", None])
 def test_add_word_rejects_blank(word, words_repo: WordRepository):
     assert WordAdminService(words_repo).add_word(word).ok is False
+
+
+class TestDeleteFailure:
+    async def test_failed_delete_is_reported_to_admins(self, deps, api, bot: FakeBot):
+        """Бот без прав на удаление бессилен, но молчать об этом не должен."""
+        bot.fail_deleting = (CHAT_ID, 7)
+        decision = await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text=BAD_TEXT,
+            user_label="vasya",
+            user_id=STRANGER_ID,
+        )
+        assert decision.action is Action.DELETE
+        assert bot.deleted == []
+        reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
+        assert len(reports) == 1
+        assert "Не удалось удалить" in reports[0]
+        assert "message to delete not found" in reports[0]
+
+    async def test_failed_delete_does_not_answer_in_the_chat(self, deps, api, bot: FakeBot):
+        bot.fail_deleting = (CHAT_ID, 7)
+        await deps.moderation.handle_message(
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="vasya"
+        )
+        assert (CHAT_ID, deps.settings.on_delete_reply, ()) not in bot.sent
+
+    async def test_failed_delete_is_not_offered_for_banning(self, deps, api, bot: FakeBot):
+        bot.fail_deleting = (CHAT_ID, 7)
+        await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text=BAD_TEXT,
+            user_label="vasya",
+            user_id=STRANGER_ID,
+        )
+        assert all(buttons == () for _, _, buttons in bot.sent)
+
+
+class TestReportLength:
+    async def test_huge_message_is_clipped_into_one_report(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text="гараж " * 1200,
+            user_label="vasya",
+        )
+        reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
+        assert len(reports) == 1
+        assert len(reports[0]) <= TELEGRAM_MESSAGE_LIMIT
+        assert reports[0].endswith("…")
+
+
+class TestLinkPreviews:
+    async def test_outgoing_messages_have_previews_disabled(self, deps, api, bot: FakeBot):
+        await deps.moderation.handle_message(
+            api,
+            chat_id=CHAT_ID,
+            message_id=7,
+            text="продам гараж https://example.com",
+            user_label="vasya",
+        )
+        assert bot.sent
+        assert all(options is not None and options.is_disabled for options in bot.previews)

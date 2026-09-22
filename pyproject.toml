@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bw-chat-manager"
-version = "0.2.1"
+version = "0.3.0"
 description = "Telegram moderation bot for the BW chat: keeps only messages that mention a building or courtyard"
 requires-python = ">=3.11"
 dependencies = [
@@ -16,6 +16,7 @@ dependencies = [
 dev = [
     "pytest~=8.3",
     "pytest-asyncio~=0.25",
+    "coverage~=7.6",
     "ruff~=0.14",
 ]
 

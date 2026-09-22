@@ -37,7 +37,8 @@ async def add_word(update: Update, context: ContextTypes.DEFAULT_TYPE, *, deps: 
         await _deny(message, deps)
         return
 
-    argument = context.args[0] if context.args else None
+    # «/add корпус 3» — это одно слово «корпус 3», а не две команды.
+    argument = " ".join(context.args) if context.args else None
     result = deps.word_admin.add_word(argument)
     await _reply_result(message, result)
     if result.ok:
@@ -54,7 +55,8 @@ async def delete_word(update: Update, context: ContextTypes.DEFAULT_TYPE, *, dep
         await _deny(message, deps)
         return
 
-    argument = context.args[0] if context.args else None
+    # «/delete_word корпус 3» убирает ровно то же слово, что добавлял /add.
+    argument = " ".join(context.args) if context.args else None
     result = deps.word_admin.delete_word(argument)
     await _reply_result(message, result)
     if result.ok:

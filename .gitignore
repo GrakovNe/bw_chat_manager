@@ -9,3 +9,6 @@ venv/
 build/
 dist/
 data/chat_settings.json
+data/recent_posts.json
+.coverage
+htmlcov/

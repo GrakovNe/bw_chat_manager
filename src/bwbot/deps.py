@@ -42,6 +42,11 @@ class Deps:
         recent_posts = RecentPostsRepository(
             settings.recent_posts_file, window_days=settings.dup_window_days
         )
+        # Окно могло устареть, пока бот не работал: чистим сразу, иначе файл
+        # разрастается за счёт сообщений, которые уже никто не вспомнит.
+        stale = recent_posts.prune()
+        if stale:
+            logging.getLogger(__name__).info("Забыли %s устаревших сообщений о повторах", stale)
         return cls(
             settings=settings,
             words=words,

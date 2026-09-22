@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 RUFF := $(VENV)/bin/ruff
 
-.PHONY: venv install run test lint fmt check clean
+.PHONY: venv install run test cov lint fmt check clean
 
 venv:
 	python3 -m venv $(VENV)
@@ -18,6 +18,10 @@ run:
 test:
 	$(PY) -m pytest -q
 
+cov:
+	$(PY) -m coverage run --source=src/bwbot -m pytest -q
+	$(PY) -m coverage report -m
+
 lint:
 	$(RUFF) check .
 
@@ -28,5 +32,5 @@ fmt:
 check: lint test
 
 clean:
-	rm -rf .pytest_cache .ruff_cache build dist *.egg-info src/*.egg-info
+	rm -rf .pytest_cache .ruff_cache .coverage htmlcov build dist *.egg-info src/*.egg-info
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

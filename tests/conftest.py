@@ -46,8 +46,10 @@ class FakeBot:
         ban_error: str = "Forbidden: bot can't ban chat administrators",
         fail_deleting: tuple[int, int] | None = None,
         delete_error: str = "BadRequest: message to delete not found",
+        fail_editing: bool = False,
     ) -> None:
         self.sent: list[tuple[int, str, tuple[Button, ...]]] = []
+        self.previews: list[object] = []
         self.deleted: list[tuple[int, int]] = []
         self.edited: list[tuple[int, int, str, tuple[Button, ...]]] = []
         self.answers: list[tuple[str, str]] = []
@@ -57,16 +59,19 @@ class FakeBot:
         self.ban_error = ban_error
         self.fail_deleting = fail_deleting
         self.delete_error = delete_error
+        self.fail_editing = fail_editing
 
     async def send_message(
         self,
         chat_id: int | None = None,
         text: str | None = None,
         reply_markup: object | None = None,
+        link_preview_options: object | None = None,
     ) -> None:
         if chat_id in self.fail_sending_to:
             raise RuntimeError(f"нет доступа в чат {chat_id}")
         self.sent.append((chat_id, text, _buttons(reply_markup)))
+        self.previews.append(link_preview_options)
 
     async def delete_message(
         self, chat_id: int | None = None, message_id: int | None = None
@@ -82,6 +87,8 @@ class FakeBot:
         text: str | None = None,
         reply_markup: object | None = None,
     ) -> None:
+        if self.fail_editing:
+            raise BadRequest("message can't be edited")
         self.edited.append((chat_id, message_id, text, _buttons(reply_markup)))
 
     async def answer_callback_query(

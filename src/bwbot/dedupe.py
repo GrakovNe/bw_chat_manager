@@ -20,6 +20,12 @@ MAX_ENTRIES_PER_AUTHOR = 50
 
 _SECONDS_PER_DAY = 86400
 
+# Сравнение крутится в обработчике сообщений, поэтому длину сравниваемых кусков
+# ограничиваем: 4096 символов против пятидесяти записей — это секунды в
+# SequenceMatcher, а ловить повторы нужно в кадре. Хвост дальше 600 символов
+# на решение не влияет: копию объявления видно по началу.
+COMPARE_LIMIT = 600
+
 # Подчёркивание считаем буквой, а не пунктуацией: `@username` всё равно теряет
 # решётку и остаётся словом.
 _PUNCTUATION = re.compile(r"[^\w\s]+", re.UNICODE)
@@ -54,17 +60,24 @@ def normalize(text: str) -> str:
     return _WHITESPACE.sub(" ", without_punctuation).strip()
 
 
-def similarity(left: str, right: str) -> float:
+def similarity(left: str, right: str, *, threshold: float = 0.0) -> float:
     """Похожесть двух нормализованных текстов от 0 до 1.
 
     `autojunk=False` обязателен: по умолчанию SequenceMatcher объявляет
     «мусором» часто встречающиеся символы в длинных строках и роняет оценку.
+
+    `threshold` — быстрая отсечка: `quick_ratio` является верхней оценкой
+    настоящего отношения, и если уже она ниже порога, точное сравнение не нужно.
     """
+    left, right = left[:COMPARE_LIMIT], right[:COMPARE_LIMIT]
     if not left or not right:
         return 0.0
     if left == right:
         return 1.0
-    return SequenceMatcher(None, left, right, autojunk=False).ratio()
+    matcher = SequenceMatcher(None, left, right, autojunk=False)
+    if matcher.quick_ratio() < threshold:
+        return 0.0
+    return matcher.ratio()
 
 
 def find_repeat(
@@ -85,7 +98,7 @@ def find_repeat(
     for post in posts:
         if not post.text or post.posted_at < oldest_allowed or post.posted_at > now:
             continue
-        score = similarity(needle, post.text)
+        score = similarity(needle, post.text, threshold=threshold)
         if score >= threshold and (best is None or score > best.score):
             best = Repeat(score=score, message_id=post.message_id, posted_at=post.posted_at)
     return best

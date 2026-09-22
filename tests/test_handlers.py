@@ -10,6 +10,8 @@ import pytest
 from bwbot.config import Settings
 from bwbot.deps import Deps
 from bwbot.handlers import admin as admin_handlers
+from bwbot.handlers import bans as ban_handlers
+from bwbot.handlers import deletes as delete_handlers
 from bwbot.handlers import messages as message_handlers
 from bwbot.handlers import silent as silent_handlers
 from bwbot.handlers.extract import from_update
@@ -18,7 +20,17 @@ from bwbot.services.bans import BanService
 from bwbot.services.deletes import DeleteService
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.words import WordRepository
-from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot, make_context, make_update
+from conftest import (
+    ADMIN_ID,
+    CHAT_ID,
+    STRANGER_ID,
+    FakeBot,
+    FakeChat,
+    FakeUpdate,
+    FakeUser,
+    make_context,
+    make_update,
+)
 
 BAD_TEXT = "продам гараж в другом жк"
 
@@ -79,11 +91,63 @@ class TestAdminCommands:
         assert "/add" in update.effective_message.replies[0]
         assert deps.words.all() == frozenset()
 
+    async def test_add_takes_the_whole_argument_as_one_word(self, deps, bot: FakeBot, words_repo):
+        update = make_update("/add корпус 3", user_id=ADMIN_ID)
+        await admin_handlers.add_word(update, make_context(bot, ["корпус", "3"]), deps=deps)
+
+        assert "корпус 3" in words_repo.all()
+        assert any("корпус 3" in reply for reply in update.effective_message.replies)
+
+    async def test_delete_word_takes_the_whole_argument(self, deps, bot: FakeBot, words_repo):
+        words_repo.add("корпус 3")
+        update = make_update("/delete_word корпус 3", user_id=ADMIN_ID)
+        await admin_handlers.delete_word(update, make_context(bot, ["корпус", "3"]), deps=deps)
+
+        assert "корпус 3" not in words_repo.all()
+        assert any("корпус 3" in reply for reply in update.effective_message.replies)
+
     async def test_delete_word_by_admin(self, deps, bot: FakeBot):
         deps.words.add("двор")
         update = make_update("/delete_word", user_id=ADMIN_ID)
         await admin_handlers.delete_word(update, make_context(bot, ["двор"]), deps=deps)
         assert deps.words.all() == frozenset()
+
+    @pytest.mark.parametrize(
+        "handler",
+        [
+            admin_handlers.start,
+            admin_handlers.add_word,
+            admin_handlers.delete_word,
+            admin_handlers.list_words,
+        ],
+    )
+    async def test_update_without_message_is_ignored(self, deps, bot: FakeBot, handler):
+        update = FakeUpdate(
+            effective_message=None,
+            effective_chat=FakeChat(CHAT_ID),
+            effective_user=FakeUser(id=ADMIN_ID),
+        )
+        await handler(update, make_context(bot, ["двор"]), deps=deps)
+
+        assert bot.sent == []
+
+    async def test_delete_word_by_stranger_is_refused(self, deps, bot: FakeBot):
+        update = make_update("/delete_word двор", user_id=STRANGER_ID)
+        await admin_handlers.delete_word(update, make_context(bot, ["двор"]), deps=deps)
+
+        assert update.effective_message.replies == [deps.settings.not_admin_reply]
+
+    async def test_admin_notification_failure_does_not_lose_the_word(
+        self, settings, words_repo: WordRepository, chat_settings_repo, recent_posts_repo
+    ):
+        bot = FakeBot(fail_sending_to={300})
+        wider = replace(settings, admin_ids=frozenset({ADMIN_ID, 300}))
+        deps = make_deps(wider, words_repo, chat_settings_repo, recent_posts_repo)
+        update = make_update("/add", user_id=ADMIN_ID, username="boss")
+
+        await admin_handlers.add_word(update, make_context(bot, ["двор"]), deps=deps)
+
+        assert deps.words.all() == frozenset({"двор"})
 
     async def test_list_words_by_stranger_is_refused(self, deps, bot: FakeBot):
         update = make_update("/list_words", user_id=STRANGER_ID)
@@ -117,6 +181,16 @@ class TestSilent:
         update = make_update("/silent", user_id=STRANGER_ID)
         await silent_handlers.silent(update, make_context(bot, ["on"]), deps=deps)
         assert deps.chat_settings.is_silent(CHAT_ID) is True
+
+    async def test_update_without_message_is_ignored(self, deps, bot: FakeBot):
+        update = FakeUpdate(
+            effective_message=None,
+            effective_chat=FakeChat(CHAT_ID),
+            effective_user=FakeUser(id=ADMIN_ID),
+        )
+        await silent_handlers.silent(update, make_context(bot, ["on"]), deps=deps)
+
+        assert bot.sent == []
 
     async def test_turns_silent_on(self, deps, bot: FakeBot):
         update = make_update("/silent", user_id=STRANGER_ID)
@@ -193,3 +267,11 @@ class TestFromUpdateWithRealTelegramObjects:
 @pytest.mark.parametrize("command", ["add_word", "delete_word", "list_words", "start"])
 def test_admin_commands_are_registered(command):
     assert hasattr(admin_handlers, command)
+
+
+@pytest.mark.parametrize(
+    "module",
+    [admin_handlers, silent_handlers, message_handlers, ban_handlers, delete_handlers],
+)
+def test_every_handler_module_exposes_register(module):
+    assert callable(module.register)

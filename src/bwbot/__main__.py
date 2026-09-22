@@ -16,12 +16,23 @@ from bwbot.deps import Deps
 logger = logging.getLogger("bwbot")
 
 
+NOISY_LOGGERS = ("httpx", "httpcore")
+
+
 def configure_logging(level: str) -> None:
+    verbosity = getattr(logging, level, logging.INFO)
     logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-        level=getattr(logging, level, logging.INFO),
+        level=verbosity,
         stream=sys.stdout,
     )
+    # basicConfig молчит, если хендлеры уже навешаны (например, тестовым
+    # плагинем), поэтому уровень задаём явно: LOG_LEVEL обязан применяться.
+    logging.getLogger().setLevel(verbosity)
+    # httpx пишет каждое обращение полным URL, а в нём токен бота. В журнале
+    # systemd токен появления быть не должен.
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def main(environ: collections.abc.Mapping[str, str] | None = None) -> None:

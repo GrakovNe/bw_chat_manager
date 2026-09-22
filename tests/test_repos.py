@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -106,6 +107,10 @@ class TestChatSettingsRepository:
         assert chat_settings_repo.is_silent(-100) is False
         chat_settings_repo.set_silent(-100, True)
         assert chat_settings_repo.is_silent(-100) is True
+
+    def test_migrate_on_non_dict_root_changes_nothing(self, chat_settings_repo):
+        chat_settings_repo.path.write_text("[1, 2, 3]", encoding="utf-8")
+        assert chat_settings_repo.migrate() == 0
 
 
 class TestJsonStore:
@@ -282,3 +287,18 @@ class TestRecentPostsRepository:
         repo.record(CHAT, AUTHOR, 5, "продам гараж", at=NOW)
 
         assert [post.message_id for post in repo.posts(CHAT, AUTHOR)] == [5]
+
+
+class TestAtomicWriteFailure:
+    def test_failed_write_leaves_no_temp_files(self, tmp_path, monkeypatch):
+        store = JsonStore(tmp_path / "state.json")
+
+        def boom(src, dst):
+            raise OSError("диск закончился")
+
+        monkeypatch.setattr(os, "replace", boom)
+        with pytest.raises(OSError):
+            store.save({"a": 1})
+
+        assert not list(tmp_path.glob("*.tmp"))
+        assert not (tmp_path / "state.json").exists()
