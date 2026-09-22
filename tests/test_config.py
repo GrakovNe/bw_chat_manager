@@ -107,3 +107,53 @@ def test_every_text_setting_is_unescaped():
     settings = from_values(BAN_DONE_REPLY="готово\\n!", BAN_FAILED_REPLY="не вышло:\\nпричина")
     assert settings.ban_done_reply == "готово\n!"
     assert settings.ban_failed_reply == "не вышло:\nпричина"
+
+
+def test_dup_defaults():
+    settings = from_values()
+    assert settings.dup_window_days == 7
+    assert 0 < settings.dup_threshold <= 1
+    assert settings.dup_delete_label == "Удалить"
+    assert settings.dup_report.format(
+        chat_id=-1, user_label="vasya", text="гараж", matched_age="вчера", score=100
+    )
+
+
+def test_dup_overrides():
+    settings = from_values(DUP_WINDOW_DAYS="30", DUP_THRESHOLD="0.75")
+    assert settings.dup_window_days == 30
+    assert settings.dup_threshold == 0.75
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "abc", "   x"])
+def test_bad_dup_window(value):
+    with pytest.raises(ConfigError, match="DUP_WINDOW_DAYS"):
+        from_values(DUP_WINDOW_DAYS=value)
+
+
+@pytest.mark.parametrize("value", ["0", "-0.5", "1.5", "abc"])
+def test_bad_dup_threshold(value):
+    with pytest.raises(ConfigError, match="DUP_THRESHOLD"):
+        from_values(DUP_THRESHOLD=value)
+
+
+@pytest.mark.parametrize("template", ["{unknown}", "{}", "{1}", "{chat_id!x}"])
+def test_bad_dup_report_template_is_rejected_on_startup(template):
+    with pytest.raises(ConfigError, match="DUP_REPORT"):
+        from_values(DUP_REPORT=template)
+
+
+def test_bad_delete_note_template_is_rejected():
+    with pytest.raises(ConfigError, match="DUP_DELETE_DONE_NOTE"):
+        from_values(DUP_DELETE_DONE_NOTE="{who}")
+
+
+def test_dup_report_keeps_line_breaks():
+    settings = from_values(DUP_REPORT="повтор\\n{score}%")
+    assert settings.dup_report == "повтор\n{score}%"
+
+
+def test_recent_posts_file_lives_in_data_dir(tmp_path):
+    settings = Settings.from_env({"TELEGRAM_TOKEN": "1:a", "DATA_DIR": str(tmp_path)})
+    assert settings.recent_posts_file == tmp_path / "recent_posts.json"
+    assert settings.recent_posts_file != settings.chat_settings_file

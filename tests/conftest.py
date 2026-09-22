@@ -7,15 +7,17 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from telegram.error import Forbidden
+from telegram.error import BadRequest, Forbidden
 
 from bwbot.config import Settings
 from bwbot.deps import Deps
 from bwbot.services.admin import WordAdminService
 from bwbot.services.api import Button, ChatApi
 from bwbot.services.bans import BanService
+from bwbot.services.deletes import DeleteService
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.chat_settings import ChatSettingsRepository
+from bwbot.storage.recent_posts import RecentPostsRepository
 from bwbot.storage.words import WordRepository
 from bwbot.telegram_api import TelegramApi
 
@@ -42,6 +44,8 @@ class FakeBot:
         fail_sending_to: set[int] | None = None,
         fail_banning: tuple[int, int] | None = None,
         ban_error: str = "Forbidden: bot can't ban chat administrators",
+        fail_deleting: tuple[int, int] | None = None,
+        delete_error: str = "BadRequest: message to delete not found",
     ) -> None:
         self.sent: list[tuple[int, str, tuple[Button, ...]]] = []
         self.deleted: list[tuple[int, int]] = []
@@ -51,6 +55,8 @@ class FakeBot:
         self.fail_sending_to = fail_sending_to or set()
         self.fail_banning = fail_banning
         self.ban_error = ban_error
+        self.fail_deleting = fail_deleting
+        self.delete_error = delete_error
 
     async def send_message(
         self,
@@ -65,6 +71,8 @@ class FakeBot:
     async def delete_message(
         self, chat_id: int | None = None, message_id: int | None = None
     ) -> None:
+        if self.fail_deleting == (chat_id, message_id):
+            raise BadRequest(self.delete_error)
         self.deleted.append((chat_id, message_id))
 
     async def edit_message_text(
@@ -168,6 +176,24 @@ def make_callback(
     return FakeCallbackUpdate(callback_query=FakeCallbackQuery(callback_id, data, user, message))
 
 
+class FakeClock:
+    """Время по часам теста: окно повторов и «N дней назад» проверяются статично."""
+
+    def __init__(self, now: float = 1_700_000_000.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, *, days: float = 0.0, seconds: float = 0.0) -> None:
+        self.now += days * 86400 + seconds
+
+
+@pytest.fixture
+def clock() -> FakeClock:
+    return FakeClock()
+
+
 def make_context(bot: FakeBot, args: list[str] | None = None) -> Any:
     return SimpleNamespace(bot=bot, args=args)
 
@@ -194,14 +220,28 @@ def chat_settings_repo(settings: Settings) -> ChatSettingsRepository:
 
 
 @pytest.fixture
-def deps(settings: Settings, words_repo: WordRepository, chat_settings_repo) -> Deps:
+def recent_posts_repo(settings: Settings) -> RecentPostsRepository:
+    return RecentPostsRepository(settings.recent_posts_file, window_days=settings.dup_window_days)
+
+
+@pytest.fixture
+def deps(
+    settings: Settings,
+    words_repo: WordRepository,
+    chat_settings_repo,
+    recent_posts_repo,
+    clock: FakeClock,
+) -> Deps:
     return Deps(
         settings=settings,
         words=words_repo,
         chat_settings=chat_settings_repo,
-        moderation=ModerationService(settings, words_repo, chat_settings_repo),
+        moderation=ModerationService(
+            settings, words_repo, chat_settings_repo, recent_posts_repo, clock
+        ),
         word_admin=WordAdminService(words_repo),
         bans=BanService(settings),
+        deletes=DeleteService(settings),
     )
 
 

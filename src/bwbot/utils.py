@@ -47,3 +47,26 @@ def chunk_text(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
     if current:
         chunks.append("\n".join(current))
     return chunks
+
+
+_SECONDS_PER_DAY = 86400
+_DAY_FORMS = ("день", "дня", "дней")
+
+
+def human_age(then: float, now: float) -> str:
+    """Возраст сообщения по-русски: «сегодня», «вчера», «4 дня назад»."""
+    days = int((now - then) // _SECONDS_PER_DAY)
+    if days <= 0:
+        return "сегодня"
+    if days == 1:
+        return "вчера"
+    return f"{days} {_plural(days, _DAY_FORMS)} назад"
+
+
+def _plural(value: int, forms: tuple[str, str, str]) -> str:
+    last_digit, last_two_digits = value % 10, value % 100
+    if last_digit == 1 and last_two_digits != 11:
+        return forms[0]
+    if 2 <= last_digit <= 4 and not 12 <= last_two_digits <= 14:
+        return forms[1]
+    return forms[2]

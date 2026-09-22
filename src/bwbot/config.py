@@ -23,13 +23,31 @@ DEFAULT_BAN_DONE_REPLY = "Забанен и удалён из чата."
 DEFAULT_BAN_FAILED_REPLY = "Не удалось забанить:"
 DEFAULT_BAN_ADMIN_REPLY = "Администратора не банят."
 DEFAULT_BAN_BROKEN_REPLY = "Не понимаю эту кнопку — она устарела."
+DEFAULT_DUP_WINDOW_DAYS = 7
+DEFAULT_DUP_THRESHOLD = 0.9
+DEFAULT_DUP_REPORT = (
+    "Подозрение на повтор в чате {chat_id} от {user_label}: {text}\n"
+    "Похоже на его же сообщение {matched_age} — совпадение {score}%."
+)
+DEFAULT_DUP_DELETE_LABEL = "Удалить"
+DEFAULT_DUP_DELETED_REPLY = "Сообщение удалено."
+DEFAULT_DUP_DELETE_FAILED_REPLY = "Не удалось удалить:"
+DEFAULT_DUP_DELETE_DONE_NOTE = "🗑 Удалено администратором {by}"
+DEFAULT_DUP_BROKEN_REPLY = "Не понимаю эту кнопку — она устарела."
 
 WORDS_FILENAME = "bw_buildings.txt"
 CHAT_SETTINGS_FILENAME = "chat_settings.json"
+RECENT_POSTS_FILENAME = "recent_posts.json"
 
 
 class ConfigError(RuntimeError):
     """Конфигурация некорректна или не может быть загружена."""
+
+
+# Подстановки, доступные в шаблоне отчёта о повторе.
+DUP_REPORT_FIELDS = frozenset({"chat_id", "user_label", "text", "matched_age", "score"})
+# Подстановки в пометке, которая дописывается под отчёт после действия админа.
+NOTE_FIELDS = frozenset({"by"})
 
 
 @dataclass(frozen=True)
@@ -48,6 +66,14 @@ class Settings:
     ban_failed_reply: str = DEFAULT_BAN_FAILED_REPLY
     ban_admin_reply: str = DEFAULT_BAN_ADMIN_REPLY
     ban_broken_reply: str = DEFAULT_BAN_BROKEN_REPLY
+    dup_window_days: int = DEFAULT_DUP_WINDOW_DAYS
+    dup_threshold: float = DEFAULT_DUP_THRESHOLD
+    dup_report: str = DEFAULT_DUP_REPORT
+    dup_delete_label: str = DEFAULT_DUP_DELETE_LABEL
+    dup_deleted_reply: str = DEFAULT_DUP_DELETED_REPLY
+    dup_delete_failed_reply: str = DEFAULT_DUP_DELETE_FAILED_REPLY
+    dup_delete_done_note: str = DEFAULT_DUP_DELETE_DONE_NOTE
+    dup_broken_reply: str = DEFAULT_DUP_BROKEN_REPLY
     log_level: str = "INFO"
 
     def __post_init__(self) -> None:
@@ -60,6 +86,10 @@ class Settings:
     @property
     def chat_settings_file(self) -> Path:
         return self.data_dir / CHAT_SETTINGS_FILENAME
+
+    @property
+    def recent_posts_file(self) -> Path:
+        return self.data_dir / RECENT_POSTS_FILENAME
 
     def is_admin(self, user_id: int | None) -> bool:
         return user_id is not None and user_id in self.admin_ids
@@ -99,8 +129,53 @@ class Settings:
             ban_failed_reply=_text(env, "BAN_FAILED_REPLY", DEFAULT_BAN_FAILED_REPLY),
             ban_admin_reply=_text(env, "BAN_ADMIN_REPLY", DEFAULT_BAN_ADMIN_REPLY),
             ban_broken_reply=_text(env, "BAN_BROKEN_REPLY", DEFAULT_BAN_BROKEN_REPLY),
+            dup_window_days=_positive_int(env, "DUP_WINDOW_DAYS", DEFAULT_DUP_WINDOW_DAYS),
+            dup_threshold=_ratio(env, "DUP_THRESHOLD", DEFAULT_DUP_THRESHOLD),
+            dup_report=_template(env, "DUP_REPORT", DEFAULT_DUP_REPORT, DUP_REPORT_FIELDS),
+            dup_delete_label=_text(env, "DUP_DELETE_LABEL", DEFAULT_DUP_DELETE_LABEL),
+            dup_deleted_reply=_text(env, "DUP_DELETED_REPLY", DEFAULT_DUP_DELETED_REPLY),
+            dup_delete_failed_reply=_text(
+                env, "DUP_DELETE_FAILED_REPLY", DEFAULT_DUP_DELETE_FAILED_REPLY
+            ),
+            dup_delete_done_note=_template(
+                env, "DUP_DELETE_DONE_NOTE", DEFAULT_DUP_DELETE_DONE_NOTE, NOTE_FIELDS
+            ),
+            dup_broken_reply=_text(env, "DUP_BROKEN_REPLY", DEFAULT_DUP_BROKEN_REPLY),
             log_level=(env.get("LOG_LEVEL") or "INFO").upper(),
         )
+
+
+def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:
+    raw = env.get(key) or ""
+    try:
+        value = int(raw) if raw.strip() else default
+    except ValueError as exc:
+        raise ConfigError(f"{key} должен быть числом: {raw!r}") from exc
+    if value < 1:
+        raise ConfigError(f"{key} должен быть >= 1, получено {value}")
+    return value
+
+
+def _ratio(env: Mapping[str, str], key: str, default: float) -> float:
+    raw = env.get(key) or ""
+    try:
+        value = float(raw) if raw.strip() else default
+    except ValueError as exc:
+        raise ConfigError(f"{key} должен быть числом от 0 до 1: {raw!r}") from exc
+    if not 0 < value <= 1:
+        raise ConfigError(f"{key} должен быть в интервале (0, 1], получено {value}")
+    return value
+
+
+def _template(env: Mapping[str, str], key: str, default: str, fields: frozenset[str]) -> str:
+    """Текст с подстановками: проверяем сразу, чтобы не падать при первом отчёте."""
+    raw = _text(env, key, default)
+    try:
+        raw.format(**dict.fromkeys(fields))
+    except (IndexError, KeyError, ValueError) as exc:
+        names = ", ".join(sorted(fields))
+        raise ConfigError(f"{key} не собирается из подстановок: {names}: {exc}") from exc
+    return raw
 
 
 def _text(env: Mapping[str, str], key: str, default: str) -> str:

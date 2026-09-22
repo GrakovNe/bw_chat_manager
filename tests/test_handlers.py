@@ -15,6 +15,7 @@ from bwbot.handlers import silent as silent_handlers
 from bwbot.handlers.extract import from_update
 from bwbot.services.admin import WordAdminService
 from bwbot.services.bans import BanService
+from bwbot.services.deletes import DeleteService
 from bwbot.services.moderation import ModerationService
 from bwbot.storage.words import WordRepository
 from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot, make_context, make_update
@@ -22,14 +23,20 @@ from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot, make_context, make
 BAD_TEXT = "продам гараж в другом жк"
 
 
-def make_deps(settings: Settings, words_repo: WordRepository, chat_settings_repo) -> Deps:
+def make_deps(
+    settings: Settings,
+    words_repo: WordRepository,
+    chat_settings_repo,
+    recent_posts_repo,
+) -> Deps:
     return Deps(
         settings=settings,
         words=words_repo,
         chat_settings=chat_settings_repo,
-        moderation=ModerationService(settings, words_repo, chat_settings_repo),
+        moderation=ModerationService(settings, words_repo, chat_settings_repo, recent_posts_repo),
         word_admin=WordAdminService(words_repo),
         bans=BanService(settings),
+        deletes=DeleteService(settings),
     )
 
 
@@ -53,11 +60,11 @@ class TestAdminCommands:
         assert "корпус 5" in update.effective_message.replies[0]
 
     async def test_add_notifies_other_admins_only(
-        self, settings, words_repo: WordRepository, chat_settings_repo
+        self, settings, words_repo: WordRepository, chat_settings_repo, recent_posts_repo
     ):
         bot = FakeBot()
         wider = replace(settings, admin_ids=frozenset({ADMIN_ID, 300}))
-        deps = make_deps(wider, words_repo, chat_settings_repo)
+        deps = make_deps(wider, words_repo, chat_settings_repo, recent_posts_repo)
         update = make_update("/add", user_id=ADMIN_ID, username="boss")
 
         await admin_handlers.add_word(update, make_context(bot, ["двор"]), deps=deps)
@@ -84,10 +91,10 @@ class TestAdminCommands:
         assert update.effective_message.replies == [deps.settings.not_admin_reply]
 
     async def test_list_words_splits_into_several_messages(
-        self, settings, words_repo: WordRepository, chat_settings_repo
+        self, settings, words_repo: WordRepository, chat_settings_repo, recent_posts_repo
     ):
         bot = FakeBot()
-        deps = make_deps(settings, words_repo, chat_settings_repo)
+        deps = make_deps(settings, words_repo, chat_settings_repo, recent_posts_repo)
         for index in range(2000):
             words_repo.add(f"словo-{index:04d}")
         update = make_update("/list_words", user_id=ADMIN_ID)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from telegram.ext import Application
 
 from bwbot.deps import Deps
-from bwbot.handlers import admin, bans, messages, silent
+from bwbot.handlers import admin, bans, deletes, messages, silent
 
 
 def register_handlers(app: Application, deps: Deps) -> None:
@@ -13,3 +13,4 @@ def register_handlers(app: Application, deps: Deps) -> None:
     silent.register(app, deps)
     messages.register(app, deps)
     bans.register(app, deps)
+    deletes.register(app, deps)

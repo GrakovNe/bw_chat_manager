@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from telegram import Update
 
 
+def user_label(user: object) -> str:
+    """Как показать пользователя администраторам."""
+    username = getattr(user, "username", None)
+    full_name = getattr(user, "full_name", None)
+    return username or full_name or "аноним"
+
+
 @dataclass(frozen=True)
 class IncomingMessage:
     chat_id: int
@@ -29,5 +36,5 @@ def from_update(update: Update) -> IncomingMessage | None:
         text=message.text,
         is_reply=message.reply_to_message is not None,
         user_id=user.id if user else None,
-        user_label=(user.username or user.full_name) if user else "аноним",
+        user_label=user_label(user),
     )

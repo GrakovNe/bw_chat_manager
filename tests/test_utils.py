@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bwbot.utils import append_note, chunk_text, normalize_word
+from bwbot.utils import append_note, chunk_text, human_age, normalize_word
 
 
 def test_normalize_word():
@@ -67,3 +67,26 @@ def test_append_note_drops_report_when_note_eats_the_limit():
 
 def test_append_note_leaves_no_dangling_spaces():
     assert append_note("a" * 8 + "   ", "note", limit=15) == "aaaaaaaa\n\nnote"
+
+
+@pytest.mark.parametrize(
+    ("days", "expected"),
+    [
+        (0, "сегодня"),
+        (0.5, "сегодня"),
+        (1, "вчера"),
+        (2, "2 дня назад"),
+        (5, "5 дней назад"),
+        (11, "11 дней назад"),
+        (21, "21 день назад"),
+        (24, "24 дня назад"),
+        (111, "111 дней назад"),
+    ],
+)
+def test_human_age(days, expected):
+    day = 86400
+    assert human_age(1_000_000 - days * day, 1_000_000) == expected
+
+
+def test_human_age_clock_skew_is_today():
+    assert human_age(1_000_100, 1_000_000) == "сегодня"

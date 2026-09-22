@@ -24,7 +24,10 @@ class TelegramApi:
         self.bot = bot
 
     async def delete_message(self, chat_id: int, message_id: int) -> None:
-        await self.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        try:
+            await self.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        except TelegramError as exc:
+            raise ApiError(str(exc)) from exc
 
     async def send_message(self, chat_id: int, text: str, buttons: Sequence[Button] = ()) -> None:
         await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=_markup(buttons))

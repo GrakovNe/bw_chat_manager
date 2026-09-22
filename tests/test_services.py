@@ -108,10 +108,14 @@ class TestModerationService:
         assert in_chat == [()]
 
     async def test_admin_notification_failure_does_not_break_handling(
-        self, settings: Settings, words_repo: WordRepository, chat_settings_repo
+        self,
+        settings: Settings,
+        words_repo: WordRepository,
+        chat_settings_repo,
+        recent_posts_repo,
     ):
         bot = FakeBot(fail_sending_to={ADMIN_ID})
-        service = ModerationService(settings, words_repo, chat_settings_repo)
+        service = ModerationService(settings, words_repo, chat_settings_repo, recent_posts_repo)
         decision = await service.handle_message(
             TelegramApi(bot), chat_id=CHAT_ID, message_id=7, text=BAD_TEXT
         )
