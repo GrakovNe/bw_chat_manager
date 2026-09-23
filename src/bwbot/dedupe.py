@@ -94,11 +94,20 @@ def find_repeat(
         return None
 
     oldest_allowed = now - window_days * _SECONDS_PER_DAY
-    best: Repeat | None = None
-    for post in posts:
-        if not post.text or post.posted_at < oldest_allowed or post.posted_at > now:
-            continue
-        score = similarity(needle, post.text, threshold=threshold)
-        if score >= threshold and (best is None or score > best.score):
-            best = Repeat(score=score, message_id=post.message_id, posted_at=post.posted_at)
-    return best
+
+    def within_window(post: StoredPost) -> bool:
+        return bool(post.text) and oldest_allowed <= post.posted_at <= now
+
+    def as_repeat(post: StoredPost) -> Repeat:
+        return Repeat(
+            score=similarity(needle, post.text, threshold=threshold),
+            message_id=post.message_id,
+            posted_at=post.posted_at,
+        )
+
+    candidates = (as_repeat(post) for post in posts if within_window(post))
+    return max(
+        (repeat for repeat in candidates if repeat.score >= threshold),
+        key=lambda repeat: repeat.score,
+        default=None,
+    )

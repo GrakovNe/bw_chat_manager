@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -105,12 +105,7 @@ class Settings:
         if not token:
             raise ConfigError("TELEGRAM_TOKEN не задан. Скопируйте .env.example в .env.")
 
-        try:
-            min_length = int(env.get("MIN_LENGTH", "") or DEFAULT_MIN_LENGTH)
-        except ValueError as exc:
-            raise ConfigError(f"MIN_LENGTH должен быть числом: {env['MIN_LENGTH']!r}") from exc
-        if min_length < 1:
-            raise ConfigError(f"MIN_LENGTH должен быть >= 1, получено {min_length}")
+        min_length = _positive_int(env, "MIN_LENGTH", DEFAULT_MIN_LENGTH)
 
         try:
             admin_ids = frozenset(_parse_int_list(env.get("ADMIN_IDS", "")))
@@ -156,23 +151,33 @@ def _log_level(env: Mapping[str, str]) -> str:
     return raw
 
 
-def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:
-    raw = env.get(key) or ""
+def _parse_number(
+    env: Mapping[str, str],
+    key: str,
+    default: int | float,
+    *,
+    cast: Callable[[str], int] | Callable[[str], float],
+    hint: str,
+) -> int | float:
+    """Число из окружения: пусто — default, мусор — ConfigError с подсказкой."""
+    raw = (env.get(key) or "").strip()
+    if not raw:
+        return default
     try:
-        value = int(raw) if raw.strip() else default
+        return cast(raw)
     except ValueError as exc:
-        raise ConfigError(f"{key} должен быть числом: {raw!r}") from exc
+        raise ConfigError(f"{key} должен быть {hint}: {raw!r}") from exc
+
+
+def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:
+    value = _parse_number(env, key, default, cast=int, hint="числом")
     if value < 1:
         raise ConfigError(f"{key} должен быть >= 1, получено {value}")
-    return value
+    return int(value)
 
 
 def _ratio(env: Mapping[str, str], key: str, default: float) -> float:
-    raw = env.get(key) or ""
-    try:
-        value = float(raw) if raw.strip() else default
-    except ValueError as exc:
-        raise ConfigError(f"{key} должен быть числом от 0 до 1: {raw!r}") from exc
+    value = _parse_number(env, key, default, cast=float, hint="числом от 0 до 1")
     if not 0 < value <= 1:
         raise ConfigError(f"{key} должен быть в интервале (0, 1], получено {value}")
     return value

@@ -15,7 +15,7 @@ class AdminResult:
     extra_chunks: tuple[str, ...] = ()
 
 
-@dataclass
+@dataclass(frozen=True)
 class WordAdminService:
     words: WordRepository
 

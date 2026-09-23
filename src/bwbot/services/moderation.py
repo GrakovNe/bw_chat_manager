@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 REPORT_TEXT_BUDGET = 3000
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModerationService:
     settings: Settings
     words: WordRepository

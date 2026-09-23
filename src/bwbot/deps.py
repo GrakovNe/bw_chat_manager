@@ -14,8 +14,10 @@ from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.recent_posts import RecentPostsRepository
 from bwbot.storage.words import WordRepository
 
+logger = logging.getLogger(__name__)
 
-@dataclass
+
+@dataclass(frozen=True)
 class Deps:
     settings: Settings
     words: WordRepository
@@ -36,9 +38,7 @@ class Deps:
         chat_settings = ChatSettingsRepository(settings.chat_settings_file)
         migrated = chat_settings.migrate()
         if migrated:
-            logging.getLogger(__name__).info(
-                "Перенесли тихий режим из старого формата: %s чат(ов)", migrated
-            )
+            logger.info("Перенесли тихий режим из старого формата: %s чат(ов)", migrated)
         recent_posts = RecentPostsRepository(
             settings.recent_posts_file, window_days=settings.dup_window_days
         )
@@ -46,7 +46,7 @@ class Deps:
         # разрастается за счёт сообщений, которые уже никто не вспомнит.
         stale = recent_posts.prune()
         if stale:
-            logging.getLogger(__name__).info("Забыли %s устаревших сообщений о повторах", stale)
+            logger.info("Забыли %s устаревших сообщений о повторах", stale)
         return cls(
             settings=settings,
             words=words,
