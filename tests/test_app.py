@@ -1,4 +1,4 @@
-"""Проводка: сборка Application, Deps.build и точка входа."""
+"""Wiring: building the Application, Deps.build and the entry point."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def app_settings(tmp_path) -> Settings:
     settings = Settings(
         token=TOKEN, min_length=10, admin_ids=frozenset({ADMIN_ID}), data_dir=tmp_path
     )
-    settings.words_file.write_text("корпус\n", encoding="utf-8")
+    settings.words_file.write_text("building\n", encoding="utf-8")
     return settings
 
 
@@ -38,7 +38,7 @@ def test_application_registers_every_kind_of_handler(app_settings):
 
 
 def test_callback_handlers_are_filtered_by_prefix(app_settings):
-    """Без префиксов обе кнопки обрабатывались бы обоими хендлерами."""
+    """Without prefixes both buttons would be handled by both handlers."""
     app = build_application(app_settings)
     patterns = sorted(
         handler.pattern.pattern
@@ -59,7 +59,7 @@ async def test_error_handler_logs_the_failure(caplog):
     with caplog.at_level(logging.ERROR, logger="bwbot.app"):
         await on_error(object(), context)
 
-    assert "Необработанная ошибка" in caplog.text
+    assert "Unhandled error" in caplog.text
     assert "boom" in caplog.text
 
 
@@ -73,8 +73,8 @@ def test_build_migrates_the_old_chat_settings_format(app_settings):
 
 
 def test_build_survives_corrupt_chat_settings(app_settings):
-    """Битый файл настроек чатов не должен валить сервис на старте."""
-    app_settings.chat_settings_file.write_text("{ это не json", encoding="utf-8")
+    """A corrupt chat settings file must not bring the service down at startup."""
+    app_settings.chat_settings_file.write_text("{ not json", encoding="utf-8")
 
     deps = Deps.build(app_settings)
 
@@ -83,13 +83,13 @@ def test_build_survives_corrupt_chat_settings(app_settings):
 
 def test_build_requires_the_words_file(tmp_path):
     settings = Settings(token=TOKEN, admin_ids=frozenset(), data_dir=tmp_path)
-    with pytest.raises(ConfigError, match="Нет файла слов"):
+    with pytest.raises(ConfigError, match="No words file"):
         Deps.build(settings)
 
 
 def test_build_forgets_posts_outside_the_window(app_settings):
     stale = {
-        "-1001": {"200": [{"id": 1, "at": 1000.0, "text": "продам гараж в корпусе 3"}]},
+        "-1001": {"200": [{"id": 1, "at": 1000.0, "text": "selling a garage in building 3"}]},
     }
     app_settings.recent_posts_file.write_text(json.dumps(stale), encoding="utf-8")
 
@@ -116,7 +116,7 @@ def test_configure_logging_keeps_the_token_out_of_http_logs():
 
 def test_cli_exits_with_code_two_on_config_error(monkeypatch, capsys):
     def boom(environ=None):
-        raise ConfigError("нет токена")
+        raise ConfigError("no token")
 
     monkeypatch.setattr(entrypoint, "main", boom)
 
@@ -124,7 +124,7 @@ def test_cli_exits_with_code_two_on_config_error(monkeypatch, capsys):
         entrypoint.cli()
 
     assert exit_info.value.code == 2
-    assert "нет токена" in capsys.readouterr().err
+    assert "no token" in capsys.readouterr().err
 
 
 def _run_main(monkeypatch, tmp_path, *, words: str) -> dict:
@@ -141,7 +141,7 @@ def _run_main(monkeypatch, tmp_path, *, words: str) -> dict:
 
 
 def test_main_starts_polling_with_every_update(monkeypatch, tmp_path):
-    started = _run_main(monkeypatch, tmp_path, words="корпус\n")
+    started = _run_main(monkeypatch, tmp_path, words="building\n")
     assert started.get("allowed_updates")
 
 
@@ -149,4 +149,4 @@ def test_main_warns_when_the_word_list_is_empty(monkeypatch, tmp_path, caplog):
     with caplog.at_level(logging.WARNING, logger="bwbot"):
         _run_main(monkeypatch, tmp_path, words="")
 
-    assert any("Список слов пуст" in record.message for record in caplog.records)
+    assert any("word list is empty" in record.message for record in caplog.records)

@@ -1,4 +1,4 @@
-"""Модерация обычных сообщений."""
+"""Moderation of ordinary messages."""
 
 from __future__ import annotations
 

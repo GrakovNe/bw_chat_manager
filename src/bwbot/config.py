@@ -1,9 +1,9 @@
-"""Загрузка настроек из переменных окружения."""
+"""Loading settings from environment variables."""
 
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -11,29 +11,29 @@ DEFAULT_MIN_LENGTH = 10
 DEFAULT_DATA_DIR = Path("data")
 
 DEFAULT_ON_DELETE_REPLY = (
-    "Сообщение удалено, поскольку в нем нет указания дома или двора BW\n\n"
-    "Если вы считаете, что ваше сообщение удалили зря - напишите @maxgrakov"
+    "The message was deleted because it does not mention a BW building or courtyard\n\n"
+    "If you believe your message was deleted by mistake - write to @maxgrakov"
 )
-DEFAULT_SILENT_ON_REPLY = "Тихий режим включён. Бот не будет отправлять сообщения об удалении."
-DEFAULT_SILENT_OFF_REPLY = "Тихий режим выключен. Бот будет отправлять сообщения об удалении."
-DEFAULT_SILENT_USAGE_REPLY = "Использование: /silent on | /silent off"
-DEFAULT_NOT_ADMIN_REPLY = "Эта команда доступна только администраторам."
+DEFAULT_SILENT_ON_REPLY = "Silent mode is on. The bot will not send deletion messages."
+DEFAULT_SILENT_OFF_REPLY = "Silent mode is off. The bot will send deletion messages."
+DEFAULT_SILENT_USAGE_REPLY = "Usage: /silent on | /silent off"
+DEFAULT_NOT_ADMIN_REPLY = "This command is available to administrators only."
 DEFAULT_BAN_BUTTON_LABEL = "BAN"
-DEFAULT_BAN_DONE_REPLY = "Забанен и удалён из чата."
-DEFAULT_BAN_FAILED_REPLY = "Не удалось забанить:"
-DEFAULT_BAN_ADMIN_REPLY = "Администратора не банят."
-DEFAULT_BAN_BROKEN_REPLY = "Не понимаю эту кнопку — она устарела."
+DEFAULT_BAN_DONE_REPLY = "Banned and removed from the chat."
+DEFAULT_BAN_FAILED_REPLY = "Could not ban:"
+DEFAULT_BAN_ADMIN_REPLY = "Administrators are not banned."
+DEFAULT_BAN_BROKEN_REPLY = "I don't understand this button — it is outdated."
 DEFAULT_DUP_WINDOW_DAYS = 7
 DEFAULT_DUP_THRESHOLD = 0.9
 DEFAULT_DUP_REPORT = (
-    "Подозрение на повтор в чате {chat_id} от {user_label}: {text}\n"
-    "Похоже на его же сообщение {matched_age} — совпадение {score}%."
+    "Suspected repeat in chat {chat_id} from {user_label}: {text}\n"
+    "Looks like their own message {matched_age} — {score}% match."
 )
-DEFAULT_DUP_DELETE_LABEL = "Удалить"
-DEFAULT_DUP_DELETED_REPLY = "Сообщение удалено."
-DEFAULT_DUP_DELETE_FAILED_REPLY = "Не удалось удалить:"
-DEFAULT_DUP_DELETE_DONE_NOTE = "🗑 Удалено администратором {by}"
-DEFAULT_DUP_BROKEN_REPLY = "Не понимаю эту кнопку — она устарела."
+DEFAULT_DUP_DELETE_LABEL = "Delete"
+DEFAULT_DUP_DELETED_REPLY = "Message deleted."
+DEFAULT_DUP_DELETE_FAILED_REPLY = "Could not delete:"
+DEFAULT_DUP_DELETE_DONE_NOTE = "🗑 Deleted by administrator {by}"
+DEFAULT_DUP_BROKEN_REPLY = "I don't understand this button — it is outdated."
 
 WORDS_FILENAME = "bw_buildings.txt"
 CHAT_SETTINGS_FILENAME = "chat_settings.json"
@@ -44,12 +44,12 @@ LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 
 
 class ConfigError(RuntimeError):
-    """Конфигурация некорректна или не может быть загружена."""
+    """The configuration is incorrect or cannot be loaded."""
 
 
-# Подстановки, доступные в шаблоне отчёта о повторе.
+# Substitutions available in the repeat report template.
 DUP_REPORT_FIELDS = frozenset({"chat_id", "user_label", "text", "matched_age", "score"})
-# Подстановки в пометке, которая дописывается под отчёт после действия админа.
+# Substitutions in the note appended under a report after an admin action.
 NOTE_FIELDS = frozenset({"by"})
 
 
@@ -103,19 +103,14 @@ class Settings:
 
         token = env.get("TELEGRAM_TOKEN", "").strip()
         if not token:
-            raise ConfigError("TELEGRAM_TOKEN не задан. Скопируйте .env.example в .env.")
+            raise ConfigError("TELEGRAM_TOKEN is not set. Copy .env.example to .env.")
 
-        try:
-            min_length = int(env.get("MIN_LENGTH", "") or DEFAULT_MIN_LENGTH)
-        except ValueError as exc:
-            raise ConfigError(f"MIN_LENGTH должен быть числом: {env['MIN_LENGTH']!r}") from exc
-        if min_length < 1:
-            raise ConfigError(f"MIN_LENGTH должен быть >= 1, получено {min_length}")
+        min_length = _positive_int(env, "MIN_LENGTH", DEFAULT_MIN_LENGTH)
 
         try:
             admin_ids = frozenset(_parse_int_list(env.get("ADMIN_IDS", "")))
         except ValueError as exc:
-            raise ConfigError(f"ADMIN_IDS должен быть списком id через запятую: {exc}") from exc
+            raise ConfigError(f"ADMIN_IDS must be a comma-separated list of ids: {exc}") from exc
 
         return cls(
             token=token,
@@ -152,49 +147,59 @@ def _log_level(env: Mapping[str, str]) -> str:
     raw = (env.get("LOG_LEVEL") or "INFO").upper()
     if raw not in LOG_LEVELS:
         names = ", ".join(sorted(LOG_LEVELS))
-        raise ConfigError(f"LOG_LEVEL должен быть одним из: {names}, получено {raw!r}")
+        raise ConfigError(f"LOG_LEVEL must be one of: {names}, got {raw!r}")
     return raw
 
 
-def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:
-    raw = env.get(key) or ""
+def _parse_number(
+    env: Mapping[str, str],
+    key: str,
+    default: int | float,
+    *,
+    cast: Callable[[str], int] | Callable[[str], float],
+    hint: str,
+) -> int | float:
+    """A number from the environment: empty — default, junk — ConfigError with a hint."""
+    raw = (env.get(key) or "").strip()
+    if not raw:
+        return default
     try:
-        value = int(raw) if raw.strip() else default
+        return cast(raw)
     except ValueError as exc:
-        raise ConfigError(f"{key} должен быть числом: {raw!r}") from exc
+        raise ConfigError(f"{key} must be {hint}: {raw!r}") from exc
+
+
+def _positive_int(env: Mapping[str, str], key: str, default: int) -> int:
+    value = _parse_number(env, key, default, cast=int, hint="a number")
     if value < 1:
-        raise ConfigError(f"{key} должен быть >= 1, получено {value}")
-    return value
+        raise ConfigError(f"{key} must be >= 1, got {value}")
+    return int(value)
 
 
 def _ratio(env: Mapping[str, str], key: str, default: float) -> float:
-    raw = env.get(key) or ""
-    try:
-        value = float(raw) if raw.strip() else default
-    except ValueError as exc:
-        raise ConfigError(f"{key} должен быть числом от 0 до 1: {raw!r}") from exc
+    value = _parse_number(env, key, default, cast=float, hint="a number from 0 to 1")
     if not 0 < value <= 1:
-        raise ConfigError(f"{key} должен быть в интервале (0, 1], получено {value}")
+        raise ConfigError(f"{key} must be in the interval (0, 1], got {value}")
     return value
 
 
 def _template(env: Mapping[str, str], key: str, default: str, fields: frozenset[str]) -> str:
-    """Текст с подстановками: проверяем сразу, чтобы не падать при первом отчёте."""
+    """Text with substitutions: validated right away so we don't crash on the first report."""
     raw = _text(env, key, default)
     try:
         raw.format(**dict.fromkeys(fields))
     except (IndexError, KeyError, ValueError) as exc:
         names = ", ".join(sorted(fields))
-        raise ConfigError(f"{key} не собирается из подстановок: {names}: {exc}") from exc
+        raise ConfigError(f"{key} does not build from substitutions: {names}: {exc}") from exc
     return raw
 
 
 def _text(env: Mapping[str, str], key: str, default: str) -> str:
-    r"""Текст настройки: переносы строк в окружении приходят литеральными.
+    r"""A text setting: line breaks in the environment arrive as literals.
 
-    `.env` и `EnvironmentFile` systemd не умеют многострочные значения, поэтому
-    администраторы пишут `\n` руками — разворачиваем их обратно в настоящие
-    переносы.
+    `.env` and systemd `EnvironmentFile` cannot hold multiline values, so
+    administrators write `\n` by hand — we expand them back into real line
+    breaks.
     """
     raw = env.get(key) or default
     return raw.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\t", "\t")

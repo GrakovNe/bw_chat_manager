@@ -1,4 +1,4 @@
-"""Тесты сервисного слоя на фейковом Bot API."""
+"""Service-layer tests over a fake Bot API."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ from bwbot.telegram_api import TelegramApi
 from bwbot.utils import TELEGRAM_MESSAGE_LIMIT
 from conftest import ADMIN_ID, CHAT_ID, STRANGER_ID, FakeBot
 
-BAD_TEXT = "продам гараж в другом жк"
-GOOD_TEXT = "затопило двор у корпуса 1"
+BAD_TEXT = "selling a garage in another complex"
+GOOD_TEXT = "flooded yard near building 1"
 
 
 class TestModerationService:
     async def test_allowed_message_changes_nothing(self, deps, api, bot: FakeBot):
-        deps.words.add("двор")
+        deps.words.add("yard")
         decision = await deps.moderation.handle_message(
             api, chat_id=CHAT_ID, message_id=1, text=GOOD_TEXT
         )
@@ -30,7 +30,7 @@ class TestModerationService:
 
     async def test_short_message_changes_nothing(self, deps, api, bot: FakeBot):
         decision = await deps.moderation.handle_message(
-            api, chat_id=CHAT_ID, message_id=1, text="ок"
+            api, chat_id=CHAT_ID, message_id=1, text="ok"
         )
         assert decision.action is Action.IGNORE_SHORT
         assert bot.deleted == []
@@ -96,7 +96,7 @@ class TestModerationService:
 
     async def test_report_without_known_author_has_no_button(self, deps, api, bot: FakeBot):
         await deps.moderation.handle_message(
-            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="аноним"
+            api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="anonymous"
         )
         reports = [buttons for chat_id, _, buttons in bot.sent if chat_id == ADMIN_ID]
         assert reports == [()]
@@ -127,9 +127,9 @@ class TestModerationService:
 
 class TestWordAdminService:
     def test_add_ok(self, words_repo: WordRepository):
-        result = WordAdminService(words_repo).add_word("  Корпус-3 ")
+        result = WordAdminService(words_repo).add_word("  Building-3 ")
         assert result.ok is True
-        assert words_repo.all() == frozenset({"корпус-3"})
+        assert words_repo.all() == frozenset({"building-3"})
 
     def test_add_without_argument_shows_usage(self, words_repo: WordRepository):
         result = WordAdminService(words_repo).add_word(None)
@@ -143,14 +143,14 @@ class TestWordAdminService:
 
     def test_add_duplicate(self, words_repo: WordRepository):
         service = WordAdminService(words_repo)
-        assert service.add_word("двор").ok is True
-        assert service.add_word("ДВОР").ok is False
+        assert service.add_word("yard").ok is True
+        assert service.add_word("YARD").ok is False
 
     def test_delete_ok_and_missing(self, words_repo: WordRepository):
         service = WordAdminService(words_repo)
-        service.add_word("двор")
-        assert service.delete_word("двор").ok is True
-        assert service.delete_word("двор").ok is False
+        service.add_word("yard")
+        assert service.delete_word("yard").ok is True
+        assert service.delete_word("yard").ok is False
 
     def test_list_empty(self, words_repo: WordRepository):
         result = WordAdminService(words_repo).list_words()
@@ -158,18 +158,18 @@ class TestWordAdminService:
         assert result.extra_chunks == ()
 
     def test_list_is_numbered_and_sorted(self, words_repo: WordRepository):
-        words_repo.add("б")
-        words_repo.add("а")
+        words_repo.add("b")
+        words_repo.add("a")
         result = WordAdminService(words_repo).list_words()
-        assert result.message.startswith("Разрешённые слова (2):")
-        assert result.message.splitlines()[1:] == ["а", "б"]
+        assert result.message.startswith("Allowed words (2):")
+        assert result.message.splitlines()[1:] == ["a", "b"]
 
 
 async def test_notify_all_swallows_partial_failures():
     bot = FakeBot(fail_sending_to={ADMIN_ID})
-    failures = await notify_all(TelegramApi(bot), [ADMIN_ID, 300], "привет")
+    failures = await notify_all(TelegramApi(bot), [ADMIN_ID, 300], "hello")
     assert len(failures) == 1
-    assert bot.sent == [(300, "привет", ())]
+    assert bot.sent == [(300, "hello", ())]
 
 
 @pytest.mark.parametrize("word", ["", None])
@@ -179,7 +179,7 @@ def test_add_word_rejects_blank(word, words_repo: WordRepository):
 
 class TestCorruptChatSettings:
     async def test_moderation_keeps_working_without_settings_file(self, deps, api, bot: FakeBot):
-        deps.chat_settings.path.write_text("{ это не json", encoding="utf-8")
+        deps.chat_settings.path.write_text("{ not json", encoding="utf-8")
 
         decision = await deps.moderation.handle_message(
             api, chat_id=CHAT_ID, message_id=7, text=BAD_TEXT, user_label="vasya"
@@ -192,7 +192,7 @@ class TestCorruptChatSettings:
 
 class TestDeleteFailure:
     async def test_failed_delete_is_reported_to_admins(self, deps, api, bot: FakeBot):
-        """Бот без прав на удаление бессилен, но молчать об этом не должен."""
+        """A bot without delete rights is powerless but must not stay silent about it."""
         bot.fail_deleting = (CHAT_ID, 7)
         decision = await deps.moderation.handle_message(
             api,
@@ -206,7 +206,7 @@ class TestDeleteFailure:
         assert bot.deleted == []
         reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
         assert len(reports) == 1
-        assert "Не удалось удалить" in reports[0]
+        assert "Failed to delete" in reports[0]
         assert "message to delete not found" in reports[0]
 
     async def test_failed_delete_does_not_answer_in_the_chat(self, deps, api, bot: FakeBot):
@@ -235,7 +235,7 @@ class TestReportLength:
             api,
             chat_id=CHAT_ID,
             message_id=7,
-            text="гараж " * 1200,
+            text="garage " * 1200,
             user_label="vasya",
         )
         reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
@@ -250,7 +250,7 @@ class TestLinkPreviews:
             api,
             chat_id=CHAT_ID,
             message_id=7,
-            text="продам гараж https://example.com",
+            text="selling a garage https://example.com",
             user_label="vasya",
         )
         assert bot.sent

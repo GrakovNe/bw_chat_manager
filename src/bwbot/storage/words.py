@@ -1,4 +1,4 @@
-"""Список разрешённых слов (дома и дворы BW)."""
+"""List of allowed words (BW buildings and courtyards)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from bwbot.utils import normalize_word
 
 
 class WordRepository:
-    """Плоский файл: одно слово в строке. Пустые строки игнорируются, регистр не значим."""
+    """A flat file: one word per line. Empty lines are ignored, case is insignificant."""
 
     def __init__(self, path: Path) -> None:
         self._path = path
@@ -25,7 +25,7 @@ class WordRepository:
             return self._read()
 
     def add(self, word: str) -> bool:
-        """Добавляет слово. False — если оно уже было или пустое."""
+        """Adds a word. False — if it was already there or is empty."""
         cleaned = normalize_word(word)
         if not cleaned:
             return False
@@ -38,7 +38,7 @@ class WordRepository:
             return True
 
     def remove(self, word: str) -> bool:
-        """Удаляет слово. False — если его не было."""
+        """Removes a word. False — if it was not there."""
         cleaned = normalize_word(word)
         with self._lock:
             words = self._read()

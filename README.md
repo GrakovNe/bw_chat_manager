@@ -1,139 +1,136 @@
 # BW Chat Manager
 
-Telegram-бот модерации чата ЖК BW: оставляет в чате только те сообщения, в которых упомянут
-дом или двор из списка разрешённых слов. Остальное удаляет, пишет причину в чат и присылает
-отчёт администраторам.
+Telegram moderation bot for the BW residential-complex chat: it keeps in the chat only those
+messages that mention a building or courtyard from the list of allowed words. Everything else it
+deletes, writes the reason into the chat and sends a report to the administrators.
 
-## Быстрый старт
+## Quick start
 
 ```bash
-make venv        # создаст .venv и поставит зависимости
-cp .env.example .env   # вписать TELEGRAM_TOKEN
+make venv        # creates .venv and installs dependencies
+cp .env.example .env   # fill in TELEGRAM_TOKEN
 make run
 ```
 
-## Конфигурация
+## Configuration
 
-Все настройки — из переменных окружения (файл `.env` подхватывается автоматически).
-Полный список с комментариями в [.env.example](.env.example).
+All settings come from environment variables (the `.env` file is picked up automatically).
+The full list with comments is in [.env.example](.env.example).
 
-| Переменная | Обязательная | По умолчанию | Значение |
+| Variable | Required | Default | Meaning |
 | --- | --- | --- | --- |
-| `TELEGRAM_TOKEN` | да | — | токен от @BotFather |
-| `MIN_LENGTH` | нет | `10` | сообщения короче не проверяются и не удаляются |
-| `ADMIN_IDS` | нет | пусто | id администраторов через запятую |
-| `DATA_DIR` | нет | `data` | каталог с файлами состояния |
-| `LOG_LEVEL` | нет | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` или `CRITICAL` |
-| `ON_DELETE_REPLY` и другие тексты | нет | в `config.py` | ответы пользователям |
-| `DUP_WINDOW_DAYS` | нет | `7` | за сколько дней помнить оставленные сообщения |
-| `DUP_THRESHOLD` | нет | `0.9` | порог похожести от 0 до 1 |
+| `TELEGRAM_TOKEN` | yes | — | token from @BotFather |
+| `MIN_LENGTH` | no | `10` | shorter messages are neither checked nor deleted |
+| `ADMIN_IDS` | no | empty | administrator ids, comma-separated |
+| `DATA_DIR` | no | `data` | directory with state files |
+| `LOG_LEVEL` | no | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` |
+| `ON_DELETE_REPLY` and other texts | no | in `config.py` | replies to users |
+| `DUP_WINDOW_DAYS` | no | `7` | how many days to remember kept messages |
+| `DUP_THRESHOLD` | no | `0.9` | similarity threshold from 0 to 1 |
 
-В текстах настроек перенос строки задаётся последовательностью `\n`: `.env` и
-`EnvironmentFile` systemd многострочных значений не держат.
+In setting texts a line break is written as the `\n` sequence: `.env` and systemd
+`EnvironmentFile` cannot hold multiline values.
 
-Слово может быть из нескольких слов: `/add корпус 3` добавляет «корпус 3» целиком,
-`/delete_word корпус 3` убирает его.
+A word may consist of several words: `/add building 3` adds "building 3" as a whole,
+`/delete_word building 3` removes it.
 
-Бот не запустится без `TELEGRAM_TOKEN` и без файла `data/bw_buildings.txt`.
-Если список слов пуст — будет удаляться любое сообщение длиннее `MIN_LENGTH`, об этом
-сообщится в логе на старте.
+The bot will not start without `TELEGRAM_TOKEN` and without the `data/bw_buildings.txt` file.
+If the word list is empty, every message longer than `MIN_LENGTH` will be deleted; this is
+reported in the log at startup.
 
-## Данные
+## Data
 
-| Файл | Что хранит | В git |
+| File | What it stores | In git |
 | --- | --- | --- |
-| `data/bw_buildings.txt` | разрешённые слова, одно в строке, регистр не значим | да |
-| `data/chat_settings.json` | тихий режим по чатам | нет |
-| `data/recent_posts.json` | недавние оставленные сообщения для поиска повторов | нет |
+| `data/bw_buildings.txt` | allowed words, one per line, case-insensitive | yes |
+| `data/chat_settings.json` | silent mode per chat | no |
+| `data/recent_posts.json` | recent kept messages used to find repeats | no |
 
-Запись атомарная (временный файл + `os.replace`), обрыв процесса не оставляет полурезультат.
+Writes are atomic (temporary file + `os.replace`), so an interrupted process leaves no half result.
 
-Битый JSON не останавливает бота: `recent_posts.json` перезаписывается начисто при
-первой же записи, `chat_settings.json` читается как пустой (тихий режим выключен везде),
-а первая команда `/silent` восстановит файл. Причина всегда в логе.
+A corrupt JSON does not stop the bot: `recent_posts.json` is rewritten from scratch on the first
+write, `chat_settings.json` is read as empty (silent mode off everywhere), and the first `/silent`
+command restores the file. The reason is always in the log.
 
-## Команды бота
+## Bot commands
 
-| Команда | Кто может | Что делает |
+| Command | Who can | What it does |
 | --- | --- | --- |
-| `/add <слово>` | администратор бота | добавляет слово в список |
-| `/delete_word <слово>` | администратор бота | удаляет слово из списка |
-| `/list_words` | администратор бота | показывает список (длинный — несколькими сообщениями) |
-| `/silent on\|off` | любой участник | выключает/включает ответы бота об удалении в этом чате |
-| `/start` | все | справка |
+| `/add <word>` | bot administrator | adds a word to the list |
+| `/delete_word <word>` | bot administrator | removes a word from the list |
+| `/list_words` | bot administrator | shows the list (a long one over several messages) |
+| `/silent on\|off` | any member | turns the bot's deletion replies in this chat off/on |
+| `/start` | everyone | help |
 
-## Повторы
+## Repeats
 
-Если тот же автор в том же чате пишет похоже чаще, чем раз в `DUP_WINDOW_DAYS`
-дней, администраторы получают отчёт с кнопкой «Удалить». Сам бот повтор не
-удаляет: молча стирать объявления по метрике похожести опасно, решение остаётся
-за человеком.
+If the same author in the same chat posts something similar more often than once every
+`DUP_WINDOW_DAYS` days, the administrators get a report with a "Delete" button. The bot itself does
+not delete the repeat: silently wiping ads based on a similarity metric is dangerous, the decision
+is left to a human.
 
-- Похожесть считается по нормализованному тексту: регистр, пунктуация, эмодзи и
-  пробелы не значимы, цифры значимы — корпус 3 и корпус 5 это разные объявления.
-- Повтором считается совпадение выше `DUP_THRESHOLD`; процент показывается в
-  отчёте, чтобы администратор видел уверенность метрики.
-- Сравниваются только сообщения одного автора в одном чате и только оставшиеся:
-  удалённые сообщения, ответы и тексты короче `MIN_LENGTH` в память не идут.
-- Окно и порог общие для всех чатов, память лежит в `data/recent_posts.json`:
-  устаревшее выбрасывается при каждой записи и ещё раз при старте бота.
-- Сравнивается начало текста — первые 600 символов нормализованного сообщения.
-  Копию объявления видно по началу, а полное сравнение многостраничного поста
-  тормозит обработку всего чата.
-- Отчёт уходит туда же, куда отчёт об удалении: чат, автор, текст, возраст
-  совпадения и процент похожести. Нажать «Удалить» может только администратор
-  бота.
-- Длинный текст в отчёте обрезается, чтобы сообщение влезло в лимит Telegram
-  (4096 символов): иначе отчёт не отправился бы вовсе.
-- После удаления кнопка исчезает, под отчётом появляется «🗑 Удалено
-  администратором `<ник>`». При отказе Telegram кнопка остаётся, чтобы
-  повторить попытку.
+- Similarity is computed on the normalized text: case, punctuation, emoji and spaces do not matter,
+  digits do — building 3 and building 5 are different ads.
+- A repeat is a match above `DUP_THRESHOLD`; the percentage is shown in the report so the
+  administrator can see the metric's confidence.
+- Only messages from the same author in the same chat are compared, and only kept ones: deleted
+  messages, replies and texts shorter than `MIN_LENGTH` do not go into memory.
+- The window and threshold are shared across all chats; the memory lives in
+  `data/recent_posts.json`: stale entries are dropped on every write and once more at bot startup.
+- The beginning of the text is compared — the first 600 characters of the normalized message.
+  A copy of an ad is recognizable from its beginning, while a full comparison of a many-page post
+  would slow down the processing of the whole chat.
+- The report goes to the same place as the deletion report: chat, author, text, the age of the
+  match and the similarity percentage. Only a bot administrator can press "Delete".
+- A long text in the report is truncated so the message fits Telegram's limit (4096 characters);
+  otherwise the report would not be sent at all.
+- After deletion the button disappears and a "🗑 Deleted by administrator `<nick>`" note appears
+  under the report. If Telegram refuses, the button stays so the attempt can be repeated.
 
-## Кнопка BAN
+## BAN button
 
-Когда бот удаляет сообщение, администраторы получают отчёт «Удалено в чате
-`<chat_id>` от `<ник>`: `<текст>`» с кнопкой **BAN**. Нажатие банит автора в том
-чате, откуда было сообщение: Telegram выкидывает его, и вернётся он только если
-его разбанят.
+When the bot deletes a message, the administrators get a report "Deleted in chat `<chat_id>` from
+`<nick>`: `<text>`" with a **BAN** button. Pressing it bans the author in the chat the message came
+from: Telegram throws them out, and they return only if unbanned.
 
-- Нажать может только администратор бота из `ADMIN_IDS`. Чужое нажатие
-  игнорируется, нажавший получает «Эта команда доступна только администраторам».
-- После успешного бана отчёт перезаписывается: появляется «⛔ Забанен
-  администратором `<ник>`», кнопка убирается — дважды по одному отчёту не жалют.
-- Если Telegram отказал (не хватило прав), отчёт остаётся с кнопкой, а причина
-  отказа приходит администратору: починили права — нажали снова.
-- Не удалось удалить сообщение — администраторы всё равно узнают: придёт
-  «Не удалось удалить сообщение `<id>` в чате `<chat_id>`: `<причина>`.» Молча
-  пропущенное сообщение хуже видимой ошибки.
-- Сообщения администраторов — получателей отчёта — кнопкой не предлагаются вовсе, а
-  нажатие на старую кнопку, оставшуюся на отчёте до этого правила, отклоняется.
-- Кнопки нет, когда автора не удалось определить — у анонимных постов канала
-  автора нет и банить некого.
+- Only a bot administrator from `ADMIN_IDS` can press it. Someone else's press is ignored, and the
+  one who pressed gets "This command is available to administrators only."
+- After a successful ban the report is rewritten: a "⛔ Banned by administrator `<nick>`" note
+  appears and the button is removed — you cannot press the same report twice.
+- If Telegram refused (not enough rights), the report stays with the button and the reason for the
+  refusal is sent to the administrator: once the rights are fixed, press again.
+- If the message could not be deleted, the administrators still find out: they receive "Failed to
+  delete message `<id>` in chat `<chat_id>`: `<reason>`." A silently skipped message is worse than a
+  visible error.
+- Messages from the report's recipients (administrators) are not offered with a button at all, and a
+  press on an old button left on a report from before this rule is rejected.
+- There is no button when the author could not be determined — an anonymous channel post has no
+  author and there is no one to ban.
 
-Нужно право «Ban users» у бота-администратора чата. Список забаненных живёт в
-Telegram, а не в файлах бота, — собственного реестра банов нет.
+The bot-administrator of the chat needs the "Ban users" right. The list of banned users lives in
+Telegram, not in the bot's files — there is no ban registry of its own.
 
-## Как это устроено
+## How it is built
 
 ```
 src/bwbot/
-  config.py        настройки из окружения
-  moderation.py    чистая функция decide() — никаких зависимостей от Telegram
-  callbacks.py     формат callback_data кнопок BAN и «Удалить» и их разбор
-  dedupe.py        нормализация текста, похожести и окно повторов
-  storage/         файлы состояния: слова, настройки чатов
-  services/        логика поверх репозиториев, работает с узким интерфейсом ChatApi
-  handlers/        тонкая telegram-обвязка, из Update достаются только данные
-  telegram_api.py  ChatApi поверх telegram.Bot
-  deps.py          сборка зависимостей
-  app.py           сборка Application
+  config.py        settings from the environment
+  moderation.py    pure decide() function — no dependency on Telegram
+  callbacks.py     format of the BAN and "Delete" button callback_data and their parsing
+  dedupe.py        text normalization, similarity and the repeat window
+  storage/         state files: words, chat settings
+  services/        logic on top of the repositories, works with the narrow ChatApi interface
+  handlers/        thin telegram wrapper, only data is pulled out of Update
+  telegram_api.py  ChatApi over telegram.Bot
+  deps.py          dependency assembly
+  app.py           Application assembly
 ```
 
-Правило слоёв: `moderation.py` и `storage/` не знают про Telegram, `services/` знают только
-протокол `ChatApi`. Настоящий `Bot` появляется лишь в `handlers/` и `telegram_api.py`.
-Поэтому вся логика тестируется без сети.
+Layer rule: `moderation.py` and `storage/` know nothing about Telegram, `services/` know only the
+`ChatApi` protocol. The real `Bot` appears only in `handlers/` and `telegram_api.py`. That is why
+all the logic is testable without the network.
 
-## Разработка
+## Development
 
 ```bash
 make test    # pytest
@@ -141,8 +138,8 @@ make lint    # ruff check
 make fmt     # ruff format + ruff check --fix
 ```
 
-### Как добавить новое правило модерации
+### How to add a new moderation rule
 
-1. В `moderation.py` — новый `Action` и ветка в `decide()` (чистая функция, тесты сразу).
-2. В `services/moderation.py` — что делать с этим `Action` (удалить / смутить / варн).
-3. Текст ответа — в `config.py` + переменная окружения.
+1. In `moderation.py` — a new `Action` and a branch in `decide()` (a pure function, tests right away).
+2. In `services/moderation.py` — what to do with this `Action` (delete / mute / warn).
+3. The reply text — in `config.py` + an environment variable.

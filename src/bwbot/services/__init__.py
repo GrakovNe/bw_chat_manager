@@ -1,4 +1,4 @@
-"""Сервисы бизнес-логики."""
+"""Business-logic services."""
 
 from bwbot.services.admin import AdminResult, WordAdminService
 from bwbot.services.api import ChatApi, notify_all

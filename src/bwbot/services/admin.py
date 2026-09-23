@@ -1,4 +1,4 @@
-"""Админ-операции над списком слов. Синхронные и без Telegram — ради тестов."""
+"""Admin operations on the word list. Synchronous and Telegram-free — for the sake of tests."""
 
 from __future__ import annotations
 
@@ -15,30 +15,30 @@ class AdminResult:
     extra_chunks: tuple[str, ...] = ()
 
 
-@dataclass
+@dataclass(frozen=True)
 class WordAdminService:
     words: WordRepository
 
     def add_word(self, raw_word: str | None) -> AdminResult:
         word = normalize_word(raw_word or "")
         if not word:
-            return AdminResult(ok=False, message="Использование: /add <слово>")
+            return AdminResult(ok=False, message="Usage: /add <word>")
         if not self.words.add(word):
-            return AdminResult(ok=False, message=f"Слово «{word}» уже есть в списке.")
-        return AdminResult(ok=True, message=f"Слово «{word}» добавлено в список.")
+            return AdminResult(ok=False, message=f"Word {word!r} is already in the list.")
+        return AdminResult(ok=True, message=f"Word {word!r} added to the list.")
 
     def delete_word(self, raw_word: str | None) -> AdminResult:
         word = normalize_word(raw_word or "")
         if not word:
-            return AdminResult(ok=False, message="Использование: /delete_word <слово>")
+            return AdminResult(ok=False, message="Usage: /delete_word <word>")
         if not self.words.remove(word):
-            return AdminResult(ok=False, message=f"Слова «{word}» нет в списке.")
-        return AdminResult(ok=True, message=f"Слово «{word}» удалено из списка.")
+            return AdminResult(ok=False, message=f"Word {word!r} is not in the list.")
+        return AdminResult(ok=True, message=f"Word {word!r} removed from the list.")
 
     def list_words(self) -> AdminResult:
         words = sorted(self.words.all())
         if not words:
-            return AdminResult(ok=True, message="Список слов пуст.")
-        chunks = chunk_text(f"Разрешённые слова ({len(words)}):\n" + "\n".join(words))
+            return AdminResult(ok=True, message="The word list is empty.")
+        chunks = chunk_text(f"Allowed words ({len(words)}):\n" + "\n".join(words))
         first, *rest = chunks
         return AdminResult(ok=True, message=first, extra_chunks=tuple(rest))

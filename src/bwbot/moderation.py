@@ -1,4 +1,4 @@
-"""Чистая логика модерации: никаких зависимостей от Telegram."""
+"""Pure moderation logic: no dependency on Telegram."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def decide(
     min_length: int,
     is_reply: bool = False,
 ) -> Decision:
-    """Одно сообщение -> одно решение. Порядок проверок наследует поведение исходного бота."""
+    """One message -> one decision. The check order inherits the original bot's behavior."""
     if is_reply:
         return Decision(Action.IGNORE_REPLY)
     if text is None or not text.strip():

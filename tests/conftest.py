@@ -1,4 +1,4 @@
-"""Фейки вместо Telegram: тесты не должны ходить в сеть."""
+"""Fakes instead of Telegram: tests must not hit the network."""
 
 from __future__ import annotations
 
@@ -27,16 +27,16 @@ CHAT_ID = -1001
 
 
 def _buttons(reply_markup: object | None) -> tuple[Button, ...]:
-    """Достаёт кнопки из настоящего InlineKeyboardMarkup, который собрал TelegramApi."""
+    """Extracts buttons from the real InlineKeyboardMarkup that TelegramApi built."""
     rows = getattr(reply_markup, "inline_keyboard", None) or ()
     return tuple((button.text, button.callback_data) for row in rows for button in row)
 
 
 class FakeBot:
-    """Подмена telegram.Bot: записывает вызовы вместо реальных запросов.
+    """A stand-in for telegram.Bot: records calls instead of real requests.
 
-    Методы повторяют имена и сигнатуры настоящего Bot, поэтому тесты проходят
-    через настоящий TelegramApi и проверяют в том числе сборку разметки.
+    The methods repeat the real Bot's names and signatures, so tests go through
+    the real TelegramApi and also check the markup assembly.
     """
 
     def __init__(
@@ -69,7 +69,7 @@ class FakeBot:
         link_preview_options: object | None = None,
     ) -> None:
         if chat_id in self.fail_sending_to:
-            raise RuntimeError(f"нет доступа в чат {chat_id}")
+            raise RuntimeError(f"no access to chat {chat_id}")
         self.sent.append((chat_id, text, _buttons(reply_markup)))
         self.previews.append(link_preview_options)
 
@@ -147,7 +147,7 @@ class FakeCallbackUpdate:
 
 
 def make_update(
-    text: str | None = "короткое",
+    text: str | None = "short",
     *,
     chat_id: int = CHAT_ID,
     message_id: int = 10,
@@ -162,7 +162,9 @@ def make_update(
         reply_to_message=FakeMessage(message_id=1) if is_reply else None,
     )
     user = (
-        FakeUser(id=user_id, username=username, full_name=username or "Аноним") if user_id else None
+        FakeUser(id=user_id, username=username, full_name=username or "Anonymous")
+        if user_id
+        else None
     )
     return FakeUpdate(
         effective_message=message, effective_chat=FakeChat(chat_id), effective_user=user
@@ -177,14 +179,22 @@ def make_callback(
     callback_id: str = "cb-1",
     report: FakeMessage | None = None,
 ) -> FakeCallbackUpdate:
-    """Нажатие кнопки под отчётом об удалении."""
-    message = report if report is not None else FakeMessage(message_id=42, text="Удалено: ляляля")
-    user = FakeUser(id=by_id, username=username, full_name=username or "Аноним") if by_id else None
+    """A button press under a deletion report."""
+    message = (
+        report
+        if report is not None
+        else FakeMessage(message_id=42, text="Deleted: blah blah")
+    )
+    user = (
+        FakeUser(id=by_id, username=username, full_name=username or "Anonymous")
+        if by_id
+        else None
+    )
     return FakeCallbackUpdate(callback_query=FakeCallbackQuery(callback_id, data, user, message))
 
 
 class FakeClock:
-    """Время по часам теста: окно повторов и «N дней назад» проверяются статично."""
+    """Time by the test clock: the repeat window and "N days ago" are checked statically."""
 
     def __init__(self, now: float = 1_700_000_000.0) -> None:
         self.now = now
@@ -259,5 +269,5 @@ def bot() -> FakeBot:
 
 @pytest.fixture
 def api(bot: FakeBot) -> ChatApi:
-    """Настоящий адаптер поверх фейкового Bot."""
+    """The real adapter over a fake Bot."""
     return TelegramApi(bot)

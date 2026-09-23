@@ -1,4 +1,4 @@
-"""Мелкие утилиты без зависимостей."""
+"""Small dependency-free utilities."""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ def normalize_word(word: str) -> str:
 
 
 def append_note(text: str, note: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> str:
-    """Дописывает строку под сообщением, не вылезая за лимит Telegram.
+    """Append a line under a message without going over the Telegram limit.
 
-    Отчёт об удалении содержит текст нарушителя и может быть длинным, поэтому
-    при нехватке места жертвуем хвостом отчёта, а не пометкой о бане.
+    A deletion report embeds the offender's text and can be long, so when space
+    runs short we sacrifice the tail of the report, not the note about the
+    administrator's action.
     """
     if not note:
         return text[:limit]
@@ -29,7 +30,7 @@ def append_note(text: str, note: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> st
 
 
 def clip(text: str, limit: int) -> str:
-    """Обрезает текст под лимит, помечая место обрезки многоточием."""
+    """Trim text to the limit, marking the cut with an ellipsis."""
     if limit <= 0:
         return ""
     if len(text) <= limit:
@@ -40,7 +41,7 @@ def clip(text: str, limit: int) -> str:
 
 
 def chunk_text(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
-    """Режет текст на куски, не разрывая строки посередине, в предел лимита Telegram."""
+    """Split text into chunks within the Telegram limit without breaking a line mid-way."""
     if len(text) <= limit:
         return [text] if text else []
 
@@ -61,23 +62,13 @@ def chunk_text(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
 
 
 _SECONDS_PER_DAY = 86400
-_DAY_FORMS = ("день", "дня", "дней")
 
 
 def human_age(then: float, now: float) -> str:
-    """Возраст сообщения по-русски: «сегодня», «вчера», «4 дня назад»."""
+    """Message age in English: "today", "yesterday", "4 days ago"."""
     days = int((now - then) // _SECONDS_PER_DAY)
     if days <= 0:
-        return "сегодня"
+        return "today"
     if days == 1:
-        return "вчера"
-    return f"{days} {_plural(days, _DAY_FORMS)} назад"
-
-
-def _plural(value: int, forms: tuple[str, str, str]) -> str:
-    last_digit, last_two_digits = value % 10, value % 100
-    if last_digit == 1 and last_two_digits != 11:
-        return forms[0]
-    if 2 <= last_digit <= 4 and not 12 <= last_two_digits <= 14:
-        return forms[1]
-    return forms[2]
+        return "yesterday"
+    return f"{days} days ago"

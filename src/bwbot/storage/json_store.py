@@ -1,4 +1,4 @@
-"""Атомарное чтение и запись файлов состояния."""
+"""Atomic read and write of state files."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ from typing import Any
 
 
 class CorruptStoreError(RuntimeError):
-    """Файл состояния повреждён — разбирать нечего."""
+    """A state file is corrupted — there is nothing to parse."""
 
 
 def write_text_atomic(path: Path, text: str) -> None:
-    """Пишет файл целиком: временный файл в той же директории + os.replace."""
+    """Writes the file whole: a temporary file in the same directory + os.replace."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -33,7 +33,7 @@ def write_text_atomic(path: Path, text: str) -> None:
 
 
 class JsonStore:
-    """Один JSON-файл на диске с блокировкой на запись в рамках процесса."""
+    """One JSON file on disk with a per-process write lock."""
 
     def __init__(self, path: Path) -> None:
         self._path = path
@@ -52,10 +52,10 @@ class JsonStore:
             self._write(data)
 
     def mutate(self, default: Any, updater: Callable[[Any], Any]) -> Any:
-        """Читает, меняет и пишет под одним локом.
+        """Reads, changes and writes under a single lock.
 
-        `updater` меняет данные на месте либо возвращает новый объект целиком.
-        Возвращает результат `updater`.
+        `updater` mutates the data in place or returns a whole new object.
+        Returns the result of `updater`.
         """
         with self._lock:
             data = self._read(default)
@@ -73,7 +73,7 @@ class JsonStore:
         try:
             return json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise CorruptStoreError(f"Не могу разобрать {self._path}: {exc}") from exc
+            raise CorruptStoreError(f"Cannot parse {self._path}: {exc}") from exc
 
     def _write(self, data: Any) -> None:
         write_text_atomic(self._path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")

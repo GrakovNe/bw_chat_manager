@@ -1,4 +1,4 @@
-"""Точка входа: `python -m bwbot` или `bwbot`."""
+"""Entry point: `python -m bwbot` or `bwbot`."""
 
 from __future__ import annotations
 
@@ -26,11 +26,11 @@ def configure_logging(level: str) -> None:
         level=verbosity,
         stream=sys.stdout,
     )
-    # basicConfig молчит, если хендлеры уже навешаны (например, тестовым
-    # плагинем), поэтому уровень задаём явно: LOG_LEVEL обязан применяться.
+    # basicConfig stays silent if handlers are already attached (e.g. by a test
+    # plugin), so we set the level explicitly: LOG_LEVEL must be applied.
     logging.getLogger().setLevel(verbosity)
-    # httpx пишет каждое обращение полным URL, а в нём токен бота. В журнале
-    # systemd токен появления быть не должен.
+    # httpx logs every request with the full URL, which contains the bot token.
+    # The token must never appear in the systemd journal.
     for name in NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
 
@@ -44,11 +44,11 @@ def main(environ: collections.abc.Mapping[str, str] | None = None) -> None:
     words_count = len(deps.words.all())
     if words_count == 0:
         logger.warning(
-            "Список слов пуст: будет удаляться любое сообщение длиннее %s символов",
+            "The word list is empty: any message longer than %s characters will be deleted",
             settings.min_length,
         )
     logger.info(
-        "Старт: data_dir=%s, слов=%s, администраторов=%s",
+        "Startup: data_dir=%s, words=%s, administrators=%s",
         settings.data_dir,
         words_count,
         len(settings.admin_ids),
@@ -61,7 +61,7 @@ def cli() -> None:
     try:
         main()
     except ConfigError as exc:
-        print(f"Ошибка конфигурации: {exc}", file=sys.stderr)
+        print(f"Configuration error: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 
 

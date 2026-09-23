@@ -1,4 +1,4 @@
-"""Тесты загрузки конфигурации."""
+"""Configuration loading tests."""
 
 from __future__ import annotations
 
@@ -38,8 +38,8 @@ def test_defaults():
 
 
 def test_text_overrides():
-    settings = from_values(ON_DELETE_REPLY="своё сообщение", LOG_LEVEL="debug")
-    assert settings.on_delete_reply == "своё сообщение"
+    settings = from_values(ON_DELETE_REPLY="custom message", LOG_LEVEL="debug")
+    assert settings.on_delete_reply == "custom message"
     assert settings.log_level == "DEBUG"
 
 
@@ -86,36 +86,36 @@ def test_is_admin():
 
 
 def test_literal_newline_is_unescaped():
-    settings = from_values(ON_DELETE_REPLY="раз\\n\\nдва")
-    assert settings.on_delete_reply == "раз\n\nдва"
+    settings = from_values(ON_DELETE_REPLY="one\\n\\ntwo")
+    assert settings.on_delete_reply == "one\n\ntwo"
 
 
 def test_real_newline_survives():
-    assert from_values(ON_DELETE_REPLY="раз\nдва").on_delete_reply == "раз\nдва"
+    assert from_values(ON_DELETE_REPLY="one\ntwo").on_delete_reply == "one\ntwo"
 
 
 def test_crlf_and_tab_are_unescaped():
-    assert from_values(SILENT_ON_REPLY="а\\r\\nб\\tc").silent_on_reply == "а\nб\tc"
+    assert from_values(SILENT_ON_REPLY="a\\r\\nb\\tc").silent_on_reply == "a\nb\tc"
 
 
-def test_unescaping_keeps_cyrillic():
-    settings = from_values(NOT_ADMIN_REPLY="Только админам\\n@maxgrakov")
-    assert settings.not_admin_reply == "Только админам\n@maxgrakov"
+def test_unescaping_keeps_text():
+    settings = from_values(NOT_ADMIN_REPLY="Admins only\\n@maxgrakov")
+    assert settings.not_admin_reply == "Admins only\n@maxgrakov"
 
 
 def test_every_text_setting_is_unescaped():
-    settings = from_values(BAN_DONE_REPLY="готово\\n!", BAN_FAILED_REPLY="не вышло:\\nпричина")
-    assert settings.ban_done_reply == "готово\n!"
-    assert settings.ban_failed_reply == "не вышло:\nпричина"
+    settings = from_values(BAN_DONE_REPLY="done\\n!", BAN_FAILED_REPLY="failed:\\nreason")
+    assert settings.ban_done_reply == "done\n!"
+    assert settings.ban_failed_reply == "failed:\nreason"
 
 
 def test_dup_defaults():
     settings = from_values()
     assert settings.dup_window_days == 7
     assert 0 < settings.dup_threshold <= 1
-    assert settings.dup_delete_label == "Удалить"
+    assert settings.dup_delete_label == "Delete"
     assert settings.dup_report.format(
-        chat_id=-1, user_label="vasya", text="гараж", matched_age="вчера", score=100
+        chat_id=-1, user_label="vasya", text="garage", matched_age="yesterday", score=100
     )
 
 
@@ -149,8 +149,8 @@ def test_bad_delete_note_template_is_rejected():
 
 
 def test_dup_report_keeps_line_breaks():
-    settings = from_values(DUP_REPORT="повтор\\n{score}%")
-    assert settings.dup_report == "повтор\n{score}%"
+    settings = from_values(DUP_REPORT="dup\\n{score}%")
+    assert settings.dup_report == "dup\n{score}%"
 
 
 def test_recent_posts_file_lives_in_data_dir(tmp_path):

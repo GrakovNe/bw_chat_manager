@@ -1,4 +1,4 @@
-"""/silent on|off — отключает ответы бота об удалении в конкретном чате."""
+"""/silent on|off — turns the bot's deletion replies off in a specific chat."""
 
 from __future__ import annotations
 

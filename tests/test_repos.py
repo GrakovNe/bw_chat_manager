@@ -1,4 +1,4 @@
-"""Тесты репозиториев и атомарной записи."""
+"""Repository and atomic-write tests."""
 
 from __future__ import annotations
 
@@ -17,13 +17,13 @@ from bwbot.storage.words import WordRepository
 
 class TestWordRepository:
     def test_add_and_read_back(self, words_repo: WordRepository):
-        assert words_repo.add("Корпус 1") is True
-        assert words_repo.all() == frozenset({"корпус 1"})
+        assert words_repo.add("Building 1") is True
+        assert words_repo.all() == frozenset({"building 1"})
 
     def test_add_is_idempotent(self, words_repo: WordRepository):
-        assert words_repo.add("двор") is True
-        assert words_repo.add("ДВОР") is False
-        assert words_repo.all() == frozenset({"двор"})
+        assert words_repo.add("yard") is True
+        assert words_repo.add("YARD") is False
+        assert words_repo.all() == frozenset({"yard"})
 
     @pytest.mark.parametrize("word", ["", "   ", "\t"])
     def test_blank_word_is_rejected(self, words_repo: WordRepository, word: str):
@@ -31,27 +31,27 @@ class TestWordRepository:
         assert words_repo.all() == frozenset()
 
     def test_remove_existing(self, words_repo: WordRepository):
-        words_repo.add("двор")
-        assert words_repo.remove("Двор") is True
+        words_repo.add("yard")
+        assert words_repo.remove("Yard") is True
         assert words_repo.all() == frozenset()
 
     def test_remove_missing(self, words_repo: WordRepository):
-        assert words_repo.remove("нет такого") is False
+        assert words_repo.remove("no such word") is False
 
     def test_blank_lines_are_skipped_on_read(self, tmp_path):
         path = tmp_path / "words.txt"
-        path.write_text("\n  Корпус2  \n\n\n", encoding="utf-8")
-        assert WordRepository(path).all() == frozenset({"корпус2"})
+        path.write_text("\n  Building2  \n\n\n", encoding="utf-8")
+        assert WordRepository(path).all() == frozenset({"building2"})
 
     def test_missing_file_reads_as_empty(self, tmp_path):
         assert WordRepository(tmp_path / "absent.txt").all() == frozenset()
 
     def test_state_survives_new_instance_and_is_sorted(self, words_repo: WordRepository):
-        words_repo.add("б")
-        words_repo.add("а")
+        words_repo.add("b")
+        words_repo.add("a")
         lines = words_repo.path.read_text(encoding="utf-8").splitlines()
-        assert lines == ["а", "б"]
-        assert WordRepository(words_repo.path).all() == frozenset({"а", "б"})
+        assert lines == ["a", "b"]
+        assert WordRepository(words_repo.path).all() == frozenset({"a", "b"})
 
 
 class TestChatSettingsRepository:
@@ -73,7 +73,7 @@ class TestChatSettingsRepository:
         assert ChatSettingsRepository(chat_settings_repo.path).is_silent(-100) is True
 
     def test_corrupted_entry_degrades_to_defaults(self, chat_settings_repo: ChatSettingsRepository):
-        chat_settings_repo.path.write_text('{"-100": "не словарь"}', encoding="utf-8")
+        chat_settings_repo.path.write_text('{"-100": "not a dict"}', encoding="utf-8")
         assert chat_settings_repo.is_silent(-100) is False
 
     def test_flat_true_from_old_version_keeps_silent_mode(self, chat_settings_repo):
@@ -110,12 +110,12 @@ class TestChatSettingsRepository:
         assert chat_settings_repo.is_silent(-100) is True
 
     def test_corrupted_file_degrades_to_defaults(self, chat_settings_repo, caplog):
-        chat_settings_repo.path.write_text("{ это не json", encoding="utf-8")
+        chat_settings_repo.path.write_text("{ not json", encoding="utf-8")
 
         with caplog.at_level(logging.ERROR, logger="bwbot.storage.chat_settings"):
             assert chat_settings_repo.is_silent(-1001) is False
 
-        assert "повреждён" in caplog.text
+        assert "corrupt" in caplog.text
 
     def test_corrupted_file_is_rewritten_by_next_change(self, chat_settings_repo):
         chat_settings_repo.path.write_text("[1, 2", encoding="utf-8")
@@ -165,7 +165,7 @@ class TestJsonStore:
 
     def test_mutate_can_replace_whole_document(self, tmp_path):
         store = JsonStore(tmp_path / "state.json")
-        store.save(["старый формат, а не словарь"])
+        store.save(["old format, not a dict"])
         store.mutate({}, lambda data: {"fixed": True})
         assert store.load({}) == {"fixed": True}
 
@@ -183,23 +183,23 @@ def posts_repo(tmp_path) -> RecentPostsRepository:
 
 class TestRecentPostsRepository:
     def test_record_and_read_back(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 5, "Продам Гараж!!!", at=NOW)
+        posts_repo.record(CHAT, AUTHOR, 5, "Selling Garage!!!", at=NOW)
 
         stored = posts_repo.posts(CHAT, AUTHOR)
         assert [(post.message_id, post.text) for post in stored] == [
-            (5, normalize("Продам Гараж!!!"))
+            (5, normalize("Selling Garage!!!"))
         ]
         assert stored[0].posted_at == NOW
 
     def test_unknown_author_or_chat_is_empty(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 5, "продам гараж", at=NOW)
+        posts_repo.record(CHAT, AUTHOR, 5, "selling a garage", at=NOW)
 
         assert posts_repo.posts(CHAT, 555) == []
         assert posts_repo.posts(-2002, AUTHOR) == []
 
     def test_authors_are_isolated(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 5, "продам гараж", at=NOW)
-        posts_repo.record(CHAT, 555, 6, "продам гараж", at=NOW)
+        posts_repo.record(CHAT, AUTHOR, 5, "selling a garage", at=NOW)
+        posts_repo.record(CHAT, 555, 6, "selling a garage", at=NOW)
 
         assert [post.message_id for post in posts_repo.posts(CHAT, AUTHOR)] == [5]
         assert [post.message_id for post in posts_repo.posts(CHAT, 555)] == [6]
@@ -213,13 +213,13 @@ class TestRecentPostsRepository:
     def test_only_newest_entries_are_kept(self, posts_repo: RecentPostsRepository):
         tiny = RecentPostsRepository(posts_repo.path, window_days=7, max_entries=3)
         for index in range(6):
-            tiny.record(CHAT, AUTHOR, index, f"продам гараж {index}", at=NOW + index)
+            tiny.record(CHAT, AUTHOR, index, f"selling a garage {index}", at=NOW + index)
 
         assert [post.message_id for post in tiny.posts(CHAT, AUTHOR)] == [3, 4, 5]
 
     def test_write_drops_entries_outside_the_window(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 1, "старый гараж", at=NOW - 30 * DAY)
-        posts_repo.record(CHAT, AUTHOR, 2, "новый гараж", at=NOW)
+        posts_repo.record(CHAT, AUTHOR, 1, "old garage", at=NOW - 30 * DAY)
+        posts_repo.record(CHAT, AUTHOR, 2, "new garage", at=NOW)
 
         assert [post.message_id for post in posts_repo.posts(CHAT, AUTHOR)] == [2]
 
@@ -230,8 +230,8 @@ class TestRecentPostsRepository:
                 {
                     str(CHAT): {
                         str(AUTHOR): [
-                            {"id": 1, "at": NOW - 30 * DAY, "text": "старый гараж"},
-                            {"id": 2, "at": NOW, "text": "свежий гараж"},
+                            {"id": 1, "at": NOW - 30 * DAY, "text": "old garage"},
+                            {"id": 2, "at": NOW, "text": "fresh garage"},
                         ]
                     }
                 }
@@ -244,36 +244,36 @@ class TestRecentPostsRepository:
         assert [post.message_id for post in repo.posts(CHAT, AUTHOR)] == [2]
 
     def test_prune_drops_empty_chats(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 1, "старый гараж", at=NOW - 30 * DAY)
+        posts_repo.record(CHAT, AUTHOR, 1, "old garage", at=NOW - 30 * DAY)
 
         assert posts_repo.prune(now=NOW) == 1
         assert json.loads(posts_repo.path.read_text(encoding="utf-8")) == {}
 
     def test_document_shape_is_stable(self, posts_repo: RecentPostsRepository):
-        posts_repo.record(CHAT, AUTHOR, 5, "продам гараж", at=NOW)
+        posts_repo.record(CHAT, AUTHOR, 5, "selling a garage", at=NOW)
 
         assert json.loads(posts_repo.path.read_text(encoding="utf-8")) == {
-            str(CHAT): {str(AUTHOR): [{"id": 5, "at": NOW, "text": "продам гараж"}]}
+            str(CHAT): {str(AUTHOR): [{"id": 5, "at": NOW, "text": "selling a garage"}]}
         }
 
     @pytest.mark.parametrize(
         "entry",
         [
             None,
-            "текст",
+            "text",
             {},
             {"id": 1, "at": NOW},
-            {"id": 1, "text": "гараж"},
-            {"id": "1", "at": NOW, "text": "гараж"},
-            {"id": True, "at": NOW, "text": "гараж"},
-            {"id": 1, "at": "вчера", "text": "гараж"},
+            {"id": 1, "text": "garage"},
+            {"id": "1", "at": NOW, "text": "garage"},
+            {"id": True, "at": NOW, "text": "garage"},
+            {"id": 1, "at": "yesterday", "text": "garage"},
             {"id": 1, "at": NOW, "text": "   "},
         ],
     )
     def test_broken_entry_is_skipped(self, tmp_path, entry):
         path = tmp_path / "recent_posts.json"
         path.write_text(
-            json.dumps({str(CHAT): {str(AUTHOR): [entry, {"id": 9, "at": NOW, "text": "гараж"}]}}),
+            json.dumps({str(CHAT): {str(AUTHOR): [entry, {"id": 9, "at": NOW, "text": "garage"}]}}),
             encoding="utf-8",
         )
         repo = RecentPostsRepository(path, window_days=7)
@@ -282,7 +282,7 @@ class TestRecentPostsRepository:
 
     @pytest.mark.parametrize(
         "document",
-        ["не словарь", [1, 2], {str(CHAT): "не словарь"}, {str(CHAT): {str(AUTHOR): "не список"}}],
+        ["not a dict", [1, 2], {str(CHAT): "not a dict"}, {str(CHAT): {str(AUTHOR): "not a list"}}],
     )
     def test_broken_document_is_empty(self, tmp_path, document):
         path = tmp_path / "recent_posts.json"
@@ -293,17 +293,17 @@ class TestRecentPostsRepository:
 
     def test_corrupt_file_does_not_break_reads(self, tmp_path):
         path = tmp_path / "recent_posts.json"
-        path.write_text("{ оборвано", encoding="utf-8")
+        path.write_text("{ truncated", encoding="utf-8")
         repo = RecentPostsRepository(path, window_days=7)
 
         assert repo.posts(CHAT, AUTHOR) == []
 
     def test_corrupt_file_is_overwritten_by_next_record(self, tmp_path):
         path = tmp_path / "recent_posts.json"
-        path.write_text("{ оборвано", encoding="utf-8")
+        path.write_text("{ truncated", encoding="utf-8")
         repo = RecentPostsRepository(path, window_days=7)
 
-        repo.record(CHAT, AUTHOR, 5, "продам гараж", at=NOW)
+        repo.record(CHAT, AUTHOR, 5, "selling a garage", at=NOW)
 
         assert [post.message_id for post in repo.posts(CHAT, AUTHOR)] == [5]
 
@@ -313,7 +313,7 @@ class TestAtomicWriteFailure:
         store = JsonStore(tmp_path / "state.json")
 
         def boom(src, dst):
-            raise OSError("диск закончился")
+            raise OSError("disk full")
 
         monkeypatch.setattr(os, "replace", boom)
         with pytest.raises(OSError):

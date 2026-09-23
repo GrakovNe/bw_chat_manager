@@ -1,4 +1,4 @@
-"""Реализация ChatApi поверх telegram.Bot."""
+"""ChatApi implementation over telegram.Bot."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from bwbot.services.api import ApiError, Button
 
 
 def _markup(buttons: Sequence[Button]) -> InlineKeyboardMarkup | None:
-    """Одна кнопка в ряд: под отчётом живёт ровно одна кнопка бана."""
+    """One button per row: exactly one ban button lives under a report."""
     if not buttons:
         return None
     return InlineKeyboardMarkup(
@@ -19,8 +19,8 @@ def _markup(buttons: Sequence[Button]) -> InlineKeyboardMarkup | None:
     )
 
 
-# Отчёты содержат текст нарушителя: чужая ссылка не должна разрастаться
-# картинкой ни в чате, ни в личных сообщениях администраторам.
+# Reports contain the offender's text: someone else's link must not blow up
+# into an image in the chat or in the administrators' private messages.
 _NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 
 
@@ -60,7 +60,7 @@ class TelegramApi:
         await self.bot.answer_callback_query(callback_query_id=callback_id, text=text)
 
     async def ban_chat_member(self, chat_id: int, user_id: int) -> None:
-        """Банит и выкидывает из чата. Отказ Telegram превращаем в ApiError с причиной."""
+        """Bans and kicks from the chat. A Telegram refusal becomes an ApiError with the reason."""
         try:
             await self.bot.ban_chat_member(chat_id=chat_id, user_id=user_id)
         except TelegramError as exc:
