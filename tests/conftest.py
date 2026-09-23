@@ -181,14 +181,10 @@ def make_callback(
 ) -> FakeCallbackUpdate:
     """A button press under a deletion report."""
     message = (
-        report
-        if report is not None
-        else FakeMessage(message_id=42, text="Deleted: blah blah")
+        report if report is not None else FakeMessage(message_id=42, text="Deleted: blah blah")
     )
     user = (
-        FakeUser(id=by_id, username=username, full_name=username or "Anonymous")
-        if by_id
-        else None
+        FakeUser(id=by_id, username=username, full_name=username or "Anonymous") if by_id else None
     )
     return FakeCallbackUpdate(callback_query=FakeCallbackQuery(callback_id, data, user, message))
 

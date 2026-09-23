@@ -86,7 +86,5 @@ class ChatSettingsRepository:
         try:
             self._store.mutate({}, updater)
         except CorruptStoreError:
-            logger.exception(
-                "Chat settings file is corrupt, rewriting it: %s", self._store.path
-            )
+            logger.exception("Chat settings file is corrupt, rewriting it: %s", self._store.path)
             self._store.save(updater({}))

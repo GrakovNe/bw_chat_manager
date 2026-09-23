@@ -78,8 +78,7 @@ class ModerationService:
             await api.send_message(chat_id, self.settings.on_delete_reply)
 
         report = (
-            f"Deleted in chat {chat_id} from {user_label}: "
-            f"{clip(text or '', REPORT_TEXT_BUDGET)}"
+            f"Deleted in chat {chat_id} from {user_label}: {clip(text or '', REPORT_TEXT_BUDGET)}"
         )
         logger.info(report)
         # The button exists only if we know whom to ban: anonymous channel posts
