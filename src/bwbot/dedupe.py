@@ -1,7 +1,8 @@
-"""Поиск повторов: чистая логика, без Telegram и файлов.
+"""Repeat detection: pure logic, no Telegram and no files.
 
-Повтором считается сообщение того же автора в том же чате, чей нормализованный
-текст похож на уже оставленное сообщение выше порога и лежит внутри окна.
+A repeat is a message from the same author in the same chat whose normalized
+text looks like an already-kept message above the threshold and falls inside the
+window.
 """
 
 from __future__ import annotations
@@ -14,27 +15,28 @@ from difflib import SequenceMatcher
 DEFAULT_WINDOW_DAYS = 7
 DEFAULT_THRESHOLD = 0.9
 
-# Сколько сообщений одного автора держать в памяти: спам-цепочка длиннее этого
-# всё равно ловится по последним копиям.
+# How many messages of one author to keep in memory: a spam chain longer than
+# this is still caught against the latest copies.
 MAX_ENTRIES_PER_AUTHOR = 50
 
 _SECONDS_PER_DAY = 86400
 
-# Сравнение крутится в обработчике сообщений, поэтому длину сравниваемых кусков
-# ограничиваем: 4096 символов против пятидесяти записей — это секунды в
-# SequenceMatcher, а ловить повторы нужно в кадре. Хвост дальше 600 символов
-# на решение не влияет: копию объявления видно по началу.
+# The comparison runs inside the message handler, so the length of the compared
+# slices is capped: 4096 characters against fifty entries is seconds in
+# SequenceMatcher, while repeats must be caught within a frame. The tail beyond
+# 600 characters does not affect the decision — a copy of an ad is visible from
+# its beginning.
 COMPARE_LIMIT = 600
 
-# Подчёркивание считаем буквой, а не пунктуацией: `@username` всё равно теряет
-# решётку и остаётся словом.
+# An underscore counts as a letter, not punctuation: `@username` still loses its
+# hash and remains a word.
 _PUNCTUATION = re.compile(r"[^\w\s]+", re.UNICODE)
 _WHITESPACE = re.compile(r"\s+", re.UNICODE)
 
 
 @dataclass(frozen=True)
 class StoredPost:
-    """Ранее оставленное сообщение: только оно и участвует в сравнении."""
+    """An earlier kept message: only it takes part in the comparison."""
 
     message_id: int
     posted_at: float
@@ -43,7 +45,7 @@ class StoredPost:
 
 @dataclass(frozen=True)
 class Repeat:
-    """Самое похожее из прежних сообщений автора."""
+    """The most similar of the author's previous messages."""
 
     score: float
     message_id: int
@@ -51,23 +53,24 @@ class Repeat:
 
 
 def normalize(text: str) -> str:
-    """Приводит текст к виду, в котором «Гараж!!!» и «гараж» — одно и то же.
+    """Bring text to a form where "Garage!!!" and "garage" are the same.
 
-    Регистр, пунктуация, эмодзи и все пробельные символы не значимы. Цифры
-    остаются: корпус 3 и корпус 5 — разные объявления, их различаем.
+    Case, punctuation, emoji and all whitespace are insignificant. Digits stay:
+    building 3 and building 5 are different ads, and we tell them apart.
     """
     without_punctuation = _PUNCTUATION.sub(" ", text.lower())
     return _WHITESPACE.sub(" ", without_punctuation).strip()
 
 
 def similarity(left: str, right: str, *, threshold: float = 0.0) -> float:
-    """Похожесть двух нормализованных текстов от 0 до 1.
+    """Similarity of two normalized texts, from 0 to 1.
 
-    `autojunk=False` обязателен: по умолчанию SequenceMatcher объявляет
-    «мусором» часто встречающиеся символы в длинных строках и роняет оценку.
+    `autojunk=False` is required: by default SequenceMatcher declares commonly
+    occurring characters in long strings "junk" and drops the score.
 
-    `threshold` — быстрая отсечка: `quick_ratio` является верхней оценкой
-    настоящего отношения, и если уже она ниже порога, точное сравнение не нужно.
+    `threshold` is a fast cutoff: `quick_ratio` is an upper bound on the real
+    ratio, so if even it is below the threshold, an exact comparison is not
+    needed.
     """
     left, right = left[:COMPARE_LIMIT], right[:COMPARE_LIMIT]
     if not left or not right:
@@ -88,7 +91,7 @@ def find_repeat(
     window_days: int = DEFAULT_WINDOW_DAYS,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> Repeat | None:
-    """Ищет самое похожее сообщение автора внутри окна, иначе None."""
+    """Find the author's most similar message inside the window, otherwise None."""
     needle = normalize(text)
     if not needle:
         return None

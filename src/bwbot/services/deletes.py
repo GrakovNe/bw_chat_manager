@@ -1,4 +1,4 @@
-"""Удаление сообщения по кнопке из отчёта о повторе."""
+"""Deleting a message via the button in a repeat report."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class DeleteService:
         try:
             await api.delete_message(target.chat_id, target.message_id)
         except ApiError as exc:
-            # Чаще всего сообщение уже удалили вручную или оно слишком старое.
+            # Most often the message was already deleted manually or is too old.
             logger.warning(
                 "delete failed: chat=%s message=%s by=%s reason=%s",
                 target.chat_id,

@@ -1,4 +1,4 @@
-"""Формат кнопок и разбор callback_data. Чистая логика, без Telegram."""
+"""Button format and callback_data parsing. Pure logic, no Telegram."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ BAN_ACTION = "ban"
 DELETE_ACTION = "del"
 _SEPARATOR = ":"
 
-# Только ASCII-цифры: `int("1_0")` равно 10, а callback_data приходит извне.
+# ASCII digits only: `int("1_0")` equals 10, and callback_data comes from outside.
 _DIGITS = re.compile(r"-?[0-9]+")
 
 
 @dataclass(frozen=True)
 class BanTarget:
-    """Кого и где банить: автор сообщения и чат, где оно было написано."""
+    """Who to ban and where: the message author and the chat where it was written."""
 
     chat_id: int
     user_id: int
@@ -29,7 +29,7 @@ class BanTarget:
 
 @dataclass(frozen=True)
 class DeleteTarget:
-    """Какое сообщение удалить. Повтор ищется в том же чате, где он появился."""
+    """Which message to delete. The repeat is searched in the same chat where it appeared."""
 
     chat_id: int
     message_id: int
@@ -48,7 +48,7 @@ def delete_button(target: DeleteTarget, label: str) -> Button:
 
 
 def parse_ban_target(data: str | None) -> BanTarget | None:
-    """Разбирает `ban:<chat_id>:<user_id>`. Всё остальное — молча None."""
+    """Parses `ban:<chat_id>:<user_id>`. Anything else — silently None."""
     numbers = _parse_two_numbers(data, BAN_ACTION)
     if numbers is None:
         return None
@@ -60,7 +60,7 @@ def parse_ban_target(data: str | None) -> BanTarget | None:
 
 
 def parse_delete_target(data: str | None) -> DeleteTarget | None:
-    """Разбирает `del:<chat_id>:<message_id>`. Всё остальное — молча None."""
+    """Parses `del:<chat_id>:<message_id>`. Anything else — silently None."""
     numbers = _parse_two_numbers(data, DELETE_ACTION)
     if numbers is None:
         return None

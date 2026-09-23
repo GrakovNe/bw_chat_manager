@@ -1,4 +1,4 @@
-"""Узкий интерфейс к Telegram API: сервисам не нужен настоящий Bot."""
+"""Narrow interface to the Telegram API: services don't need a real Bot."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import asyncio
 from collections.abc import Iterable, Sequence
 from typing import Protocol
 
-# Кнопка под сообщением: подпись и callback_data, которая вернётся в хендлере.
+# A button under a message: a label and the callback_data returned in the handler.
 Button = tuple[str, str]
 
 
 class ApiError(RuntimeError):
-    """Telegram отказал в действии. Текст понятен человеку и показуется администраторам."""
+    """Telegram refused an action. The text is human-readable and shown to administrators."""
 
 
 class ChatApi(Protocol):
@@ -36,7 +36,7 @@ async def notify_all(
     text: str,
     buttons: Sequence[Button] = (),
 ) -> list[BaseException]:
-    """Шлёт текст каждому адресату, не падая на отказе одного канала."""
+    """Sends text to every recipient without failing on one broken channel."""
     results = await asyncio.gather(
         *(api.send_message(chat_id, text, buttons) for chat_id in chat_ids),
         return_exceptions=True,

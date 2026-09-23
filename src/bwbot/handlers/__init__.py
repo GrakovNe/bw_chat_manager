@@ -1,4 +1,4 @@
-"""Регистрация всех хендлеров."""
+"""Registration of all handlers."""
 
 from __future__ import annotations
 

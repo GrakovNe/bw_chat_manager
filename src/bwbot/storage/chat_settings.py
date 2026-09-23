@@ -1,4 +1,4 @@
-"""Настройки чатов: тихий режим и будущие per-chat опции."""
+"""Chat settings: silent mode and future per-chat options."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ SILENT_KEY = "silent"
 
 
 def _normalize_entry(entry: Any) -> dict[str, Any]:
-    """Новый формат — словарь. Плоский bool остался от старой версии бота."""
+    """The new format is a dict. A flat bool is left over from the old bot version."""
     if isinstance(entry, bool):
         return {SILENT_KEY: entry}
     return dict(entry) if isinstance(entry, dict) else {}
@@ -27,10 +27,10 @@ def _normalize_document(data: Any) -> dict[str, Any]:
 
 
 class ChatSettingsRepository:
-    """{ "<chat_id>": { "silent": true } } в одном JSON-файле.
+    """{ "<chat_id>": { "silent": true } } in a single JSON file.
 
-    Читает и старый плоский формат { "<chat_id": true }, чтобы при переезде
-    с прежней версии тихий режим в чатах не сбросился.
+    Also reads the old flat format { "<chat_id>": true } so that silent mode in
+    chats is not reset when migrating from the previous version.
     """
 
     def __init__(self, path: Path) -> None:
@@ -60,7 +60,7 @@ class ChatSettingsRepository:
         self._mutate(updater)
 
     def migrate(self) -> int:
-        """Приводит файл к новому формату. Возвращает число исправленных записей."""
+        """Brings the file to the new format. Returns the number of fixed entries."""
         raw = self._load()
         if not isinstance(raw, dict):
             return 0
@@ -71,15 +71,15 @@ class ChatSettingsRepository:
         return changed
 
     def _load(self) -> Any:
-        """Битый файл настроек не должен останавливать модерацию: помним пустоту.
+        """A corrupt settings file must not stop moderation: we remember emptiness.
 
-        Сам файл не трогаем — пусть останется для разбора; первая же запись
-        перепишет его начисто.
+        We don't touch the file itself — let it stay for inspection; the very
+        first write will rewrite it from scratch.
         """
         try:
             return self._store.load({})
         except CorruptStoreError:
-            logger.exception("Файл настроек чатов повреждён: %s", self._store.path)
+            logger.exception("Chat settings file is corrupt: %s", self._store.path)
             return {}
 
     def _mutate(self, updater) -> None:
@@ -87,6 +87,6 @@ class ChatSettingsRepository:
             self._store.mutate({}, updater)
         except CorruptStoreError:
             logger.exception(
-                "Файл настроек чатов повреждён, записываем заново: %s", self._store.path
+                "Chat settings file is corrupt, rewriting it: %s", self._store.path
             )
             self._store.save(updater({}))

@@ -1,4 +1,4 @@
-"""Кнопка «Удалить» в отчёте о повторе: убирает сообщение, оставшееся в чате."""
+"""The "Delete" button in a repeat report: removes the message left in the chat."""
 
 from __future__ import annotations
 
@@ -26,6 +26,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, *, dep
 
 
 def register(app: Application, deps: Deps) -> None:
-    # Pattern обязателен: в одной группе два callback-хендлера, без фильтра они
-    # оба отрабатывали бы на любой кнопке.
+    # The pattern is required: two callback handlers in one group; without a
+    # filter both would fire on any button.
     app.add_handler(CallbackQueryHandler(partial(on_callback, deps=deps), pattern=r"^del:"))

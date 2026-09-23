@@ -31,7 +31,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["src"]
-# pytest-asyncio на Python 3.14 будит deprecated-хуки asyncio — это не наш код.
+# On Python 3.14 pytest-asyncio triggers deprecated asyncio hooks — not our code.
 filterwarnings = [
     "ignore:'asyncio\\.\\w+_event_loop_policy' is deprecated:DeprecationWarning",
 ]
@@ -43,8 +43,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RUF"]
-# RUF001-003: кириллица в строках и докстрингах — не опечатка, а рабочий язык проекта.
-ignore = ["RUF001", "RUF002", "RUF003"]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["RUF012"]

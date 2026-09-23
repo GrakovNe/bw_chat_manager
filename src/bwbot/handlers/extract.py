@@ -1,4 +1,4 @@
-"""Извлечение из Update того, что нужно сервисам."""
+"""From an Update, extract what the services need."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from telegram import Update
 
 
 def user_label(user: object) -> str:
-    """Как показать пользователя администраторам."""
+    """How to show a user to the administrators."""
     username = getattr(user, "username", None)
     full_name = getattr(user, "full_name", None)
-    return username or full_name or "аноним"
+    return username or full_name or "anonymous"
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,8 @@
-"""Общий каркас ответа на нажатие кнопки под отчётом.
+"""Shared skeleton for answering a button press under a report.
 
-Бан и удаление различаются только тем, что делают: разбор цели, текст про
-битую кнопку, само действие и пометка об итоге. Проверка прав, ответ нажателю
-и обновление отчёта — одна и та же последовательность, живёт здесь.
+Ban and delete differ only in what they do: parsing the target, the broken-button
+text, the action itself and the outcome note. The permission check, the reply to
+the presser and the report update — the same sequence, lives here.
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ from bwbot.utils import append_note
 
 logger = logging.getLogger(__name__)
 
-# Разбор callback_data: строка -> цель нажатия или None, если кнопка не понята.
+# Parsing callback_data: a string -> a press target, or None if the button is not understood.
 Parse = Callable[[str | None], Any]
-# Действие администратора: (api, target, *, by) -> исход.
+# An administrator action: (api, target, *, by) -> outcome.
 Action = Callable[..., Awaitable[ActionResult]]
 
 
@@ -61,14 +61,14 @@ async def handle_button(
     result = await action(api, target, by=by)
     await api.answer_callback(query.id, result.message)
     if not result.ok:
-        # Кнопку оставляем: причину отказа можно устранить и нажать снова.
+        # We keep the button: the refusal reason can be fixed and pressed again.
         return
 
     await _mark_report(api, query, note_template.format(by=by), name)
 
 
 async def _mark_report(api: ChatApi, query: Any, note: str, name: str) -> None:
-    """Снимает кнопку и дописывает итог, чтобы по одному отчёту жали один раз."""
+    """Removes the button and appends the outcome, so a report is clicked only once."""
     message = query.message
     text = getattr(message, "text", None)
     if message is None or not text:
@@ -81,4 +81,4 @@ async def _mark_report(api: ChatApi, query: Any, note: str, name: str) -> None:
             append_note(text, note),
         )
     except TelegramError:
-        logger.warning("Не удалось обновить отчёт (%s)", name, exc_info=True)
+        logger.warning("Could not update the report (%s)", name, exc_info=True)

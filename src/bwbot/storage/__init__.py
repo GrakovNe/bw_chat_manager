@@ -1,4 +1,4 @@
-"""Хранилище состояния на диске."""
+"""On-disk state storage."""
 
 from bwbot.storage.chat_settings import ChatSettingsRepository
 from bwbot.storage.json_store import CorruptStoreError, JsonStore, write_text_atomic

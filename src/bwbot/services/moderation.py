@@ -1,4 +1,4 @@
-"""Сервис модерации: решает судьбу сообщения и выполняет действие."""
+"""Moderation service: decides a message's fate and performs the action."""
 
 from __future__ import annotations
 
@@ -19,9 +19,10 @@ from bwbot.utils import TELEGRAM_MESSAGE_LIMIT, clip, human_age
 
 logger = logging.getLogger(__name__)
 
-# Сколько текста нарушителя попадает в отчёт. Остальное место нужно шапке,
-# пометке о действиях администратора и кнопке — иначе Telegram отклонит
-# сообщение, и администраторы не узнают об удалении вовсе.
+# How much of the offender's text goes into the report. The rest of the space is
+# needed for the header, the note about the administrator's actions and the
+# button — otherwise Telegram rejects the message and the administrators learn
+# about the deletion not at all.
 REPORT_TEXT_BUDGET = 3000
 
 
@@ -31,7 +32,7 @@ class ModerationService:
     words: WordRepository
     chat_settings: ChatSettingsRepository
     recent_posts: RecentPostsRepository
-    # Часы отдельным полем, чтобы окно повторов тестировалось без махинаций со временем.
+    # The clock is a separate field so the repeat window is testable without time tricks.
     clock: Callable[[], float] = field(default=time.time)
 
     async def handle_message(
@@ -42,7 +43,7 @@ class ModerationService:
         message_id: int,
         text: str | None,
         is_reply: bool = False,
-        user_label: str = "неизвестный",
+        user_label: str = "unknown",
         user_id: int | None = None,
     ) -> Decision:
         decision = decide(
@@ -66,21 +67,24 @@ class ModerationService:
         try:
             await api.delete_message(chat_id, message_id)
         except ApiError as exc:
-            # Без прав на удаление бот бессилен, но молчать хуже, чем сказать.
-            logger.error("не удалось удалить сообщение %s в чате %s: %s", message_id, chat_id, exc)
+            # Without delete rights the bot is powerless, but silence is worse than speaking up.
+            logger.error("failed to delete message %s in chat %s: %s", message_id, chat_id, exc)
             await self._notify_admins(
-                api, f"Не удалось удалить сообщение {message_id} в чате {chat_id}: {exc}"
+                api, f"Failed to delete message {message_id} in chat {chat_id}: {exc}"
             )
             return decision
 
         if not self.chat_settings.is_silent(chat_id):
             await api.send_message(chat_id, self.settings.on_delete_reply)
 
-        report = f"Удалено в чате {chat_id} от {user_label}: {clip(text or '', REPORT_TEXT_BUDGET)}"
+        report = (
+            f"Deleted in chat {chat_id} from {user_label}: "
+            f"{clip(text or '', REPORT_TEXT_BUDGET)}"
+        )
         logger.info(report)
-        # Кнопка есть только если знаем, кого банить: у анонимных постов канала
-        # автора нет, и банить некого. Администраторов — получателей отчёта — кнопка
-        # не предлагает вовсе: банить своих нельзя.
+        # The button exists only if we know whom to ban: anonymous channel posts
+        # have no author, and there is no one to ban. Administrators — the report's
+        # recipients — are never offered the button: you can't ban your own.
         buttons: tuple[Button, ...] = ()
         if user_id is not None and not self.settings.is_admin(user_id):
             target = BanTarget(chat_id=chat_id, user_id=user_id)
@@ -93,7 +97,7 @@ class ModerationService:
     ) -> None:
         failures = await notify_all(api, self.settings.admin_ids, text, buttons)
         for failure in failures:
-            logger.warning("Не удалось уведомить администраторов: %s", failure)
+            logger.warning("Could not notify administrators: %s", failure)
 
     async def _report_repeat(
         self,
@@ -105,10 +109,11 @@ class ModerationService:
         user_label: str,
         user_id: int,
     ) -> None:
-        """Оставленное сообщение идёт в базу сравнения, а его копия — администраторам.
+        """A kept message goes into the comparison base, and its copy to the administrators.
 
-        Сам повтор не удаляем: порог похожести подстраховки не даёт молча
-        стирать живые объявления, решение остаётся за администратором.
+        We don't delete the repeat itself: a similarity threshold gives no
+        guarantee, so silently erasing live ads is not allowed — the decision is
+        left to the administrator.
         """
         now = self.clock()
         repeat = find_repeat(

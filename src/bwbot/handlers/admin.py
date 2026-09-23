@@ -1,4 +1,4 @@
-"""Админ-команды: /start, /add, /delete_word, /list_words."""
+"""Admin commands: /start, /add, /delete_word, /list_words."""
 
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ from bwbot.utils import normalize_word
 logger = logging.getLogger(__name__)
 
 START_TEXT = (
-    "Привет! Я оставляю в чате только сообщения про дома и дворы BW.\n"
-    "Админ-команды: /add, /delete_word, /list_words, /silent."
+    "Hi! I keep in the chat only messages about BW buildings and courtyards.\n"
+    "Admin commands: /add, /delete_word, /list_words, /silent."
 )
 
 
@@ -36,13 +36,13 @@ async def add_word(update: Update, context: ContextTypes.DEFAULT_TYPE, *, deps: 
         return
     message, incoming = authorized
 
-    # «/add корпус 3» — это одно слово «корпус 3», а не две команды.
+    # "/add building 3" is one word "building 3", not two commands.
     argument = _argument(context)
     result = deps.word_admin.add_word(argument)
     await _reply_result(message, result)
     if result.ok:
         await _report_to_admins(
-            context, deps, incoming, f"добавил(а) слово «{normalize_word(argument or '')}»"
+            context, deps, incoming, f"added word {normalize_word(argument or '')!r}"
         )
 
 
@@ -52,13 +52,13 @@ async def delete_word(update: Update, context: ContextTypes.DEFAULT_TYPE, *, dep
         return
     message, incoming = authorized
 
-    # «/delete_word корпус 3» убирает ровно то же слово, что добавлял /add.
+    # "/delete_word building 3" removes exactly the same word that /add added.
     argument = _argument(context)
     result = deps.word_admin.delete_word(argument)
     await _reply_result(message, result)
     if result.ok:
         await _report_to_admins(
-            context, deps, incoming, f"удалил(а) слово «{normalize_word(argument or '')}»"
+            context, deps, incoming, f"removed word {normalize_word(argument or '')!r}"
         )
 
 
@@ -72,7 +72,10 @@ async def list_words(update: Update, context: ContextTypes.DEFAULT_TYPE, *, deps
 
 
 async def _require_admin(update: Update, deps: Deps) -> tuple[Message, IncomingMessage] | None:
-    """Сообщение и данные автора, если автор — администратор бота. Иначе отвечает «нельзя»."""
+    """The message and the author's data if the author is a bot administrator.
+
+    Otherwise replies "not allowed" and returns None.
+    """
     message = update.effective_message
     if message is None:
         return None
@@ -96,11 +99,11 @@ async def _reply_result(message: Message, result: AdminResult) -> None:
 async def _report_to_admins(
     context: ContextTypes.DEFAULT_TYPE, deps: Deps, incoming: IncomingMessage, action: str
 ) -> None:
-    text = f"{incoming.user_label} {action} в чате {incoming.chat_id}."
+    text = f"{incoming.user_label} {action} in chat {incoming.chat_id}."
     recipients = [admin_id for admin_id in deps.settings.admin_ids if admin_id != incoming.user_id]
     failures = await notify_all(TelegramApi(context.bot), recipients, text)
     for failure in failures:
-        logger.warning("Не удалось уведомить администраторов: %s", failure)
+        logger.warning("Could not notify administrators: %s", failure)
 
 
 def register(app: Application, deps: Deps) -> None:

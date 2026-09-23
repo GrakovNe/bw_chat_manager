@@ -1,4 +1,4 @@
-"""Бан по кнопке: сервис и хендлер callback'а."""
+"""Banning via the button: the service and the callback handler."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from conftest import (
     make_context,
 )
 
-REPORT_TEXT = f"Удалено в чате {CHAT_ID} от stranger: продам гараж в другом жк"
+REPORT_TEXT = f"Deleted in chat {CHAT_ID} from stranger: selling a garage in another complex"
 
 
 def ban_data(chat_id: int = CHAT_ID, user_id: int = STRANGER_ID) -> str:
@@ -57,7 +57,7 @@ class TestBanCallback:
     async def test_admin_press_bans_in_the_chat_of_the_original_message(
         self, deps, bot: FakeBot
     ) -> None:
-        # Отчёт лежит в личных сообщениях админа, а банить надо в рабочем чате.
+        # The report lives in the admin's DMs, but the ban must hit the working chat.
         report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=REPORT_TEXT)
         update = make_callback(ban_data(), report=report)
 
@@ -106,7 +106,7 @@ class TestBanCallback:
         assert bot.answers == [("cb-1", deps.settings.ban_broken_reply)]
 
     async def test_stale_button_on_admin_is_refused(self, deps, bot: FakeBot) -> None:
-        # Отчёт мог уйти до запрета банить администраторов — кнопка на нём всё ещё есть.
+        # The report may predate the ban-admins rule — the button is still on it.
         report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=REPORT_TEXT)
         update = make_callback(ban_data(user_id=ADMIN_ID), report=report)
 
@@ -130,7 +130,7 @@ class TestBanCallback:
         assert "not administrator" in bot.answers[0][1]
 
     async def test_unreadable_report_does_not_undo_the_ban(self, deps, bot: FakeBot) -> None:
-        """Telegram отказался править старое сообщение — бан от этого не отменяется."""
+        """Telegram refused to edit the old message — the ban is not undone by that."""
         bot.fail_editing = True
         report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text=REPORT_TEXT)
 

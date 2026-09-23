@@ -1,4 +1,4 @@
-"""Тесты хендлеров: только Telegram-обвязка, логика проверена отдельно."""
+"""Handler tests: only the Telegram wrapper, the logic is verified separately."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from conftest import (
     make_update,
 )
 
-BAD_TEXT = "продам гараж в другом жк"
+BAD_TEXT = "selling a garage in another complex"
 
 
 def make_deps(
@@ -60,16 +60,16 @@ class TestAdminCommands:
 
     async def test_add_by_stranger_is_refused(self, deps, bot: FakeBot):
         update = make_update("/add", user_id=STRANGER_ID)
-        await admin_handlers.add_word(update, make_context(bot, ["корпус 5"]), deps=deps)
+        await admin_handlers.add_word(update, make_context(bot, ["building 5"]), deps=deps)
         assert update.effective_message.replies == [deps.settings.not_admin_reply]
         assert deps.words.all() == frozenset()
         assert bot.sent == []
 
     async def test_add_by_admin_writes_file_and_replies(self, deps, bot: FakeBot):
         update = make_update("/add", user_id=ADMIN_ID, username="boss")
-        await admin_handlers.add_word(update, make_context(bot, [" Корпус 5 "]), deps=deps)
-        assert deps.words.all() == frozenset({"корпус 5"})
-        assert "корпус 5" in update.effective_message.replies[0]
+        await admin_handlers.add_word(update, make_context(bot, [" Building 5 "]), deps=deps)
+        assert deps.words.all() == frozenset({"building 5"})
+        assert "building 5" in update.effective_message.replies[0]
 
     async def test_add_notifies_other_admins_only(
         self, settings, words_repo: WordRepository, chat_settings_repo, recent_posts_repo
@@ -79,11 +79,11 @@ class TestAdminCommands:
         deps = make_deps(wider, words_repo, chat_settings_repo, recent_posts_repo)
         update = make_update("/add", user_id=ADMIN_ID, username="boss")
 
-        await admin_handlers.add_word(update, make_context(bot, ["двор"]), deps=deps)
+        await admin_handlers.add_word(update, make_context(bot, ["yard"]), deps=deps)
 
         assert [chat_id for chat_id, _, _ in bot.sent] == [300]
         assert "boss" in bot.sent[0][1]
-        assert "двор" in bot.sent[0][1]
+        assert "yard" in bot.sent[0][1]
 
     async def test_add_without_argument_shows_usage(self, deps, bot: FakeBot):
         update = make_update("/add", user_id=ADMIN_ID)
@@ -92,24 +92,24 @@ class TestAdminCommands:
         assert deps.words.all() == frozenset()
 
     async def test_add_takes_the_whole_argument_as_one_word(self, deps, bot: FakeBot, words_repo):
-        update = make_update("/add корпус 3", user_id=ADMIN_ID)
-        await admin_handlers.add_word(update, make_context(bot, ["корпус", "3"]), deps=deps)
+        update = make_update("/add building 3", user_id=ADMIN_ID)
+        await admin_handlers.add_word(update, make_context(bot, ["building", "3"]), deps=deps)
 
-        assert "корпус 3" in words_repo.all()
-        assert any("корпус 3" in reply for reply in update.effective_message.replies)
+        assert "building 3" in words_repo.all()
+        assert any("building 3" in reply for reply in update.effective_message.replies)
 
     async def test_delete_word_takes_the_whole_argument(self, deps, bot: FakeBot, words_repo):
-        words_repo.add("корпус 3")
-        update = make_update("/delete_word корпус 3", user_id=ADMIN_ID)
-        await admin_handlers.delete_word(update, make_context(bot, ["корпус", "3"]), deps=deps)
+        words_repo.add("building 3")
+        update = make_update("/delete_word building 3", user_id=ADMIN_ID)
+        await admin_handlers.delete_word(update, make_context(bot, ["building", "3"]), deps=deps)
 
-        assert "корпус 3" not in words_repo.all()
-        assert any("корпус 3" in reply for reply in update.effective_message.replies)
+        assert "building 3" not in words_repo.all()
+        assert any("building 3" in reply for reply in update.effective_message.replies)
 
     async def test_delete_word_by_admin(self, deps, bot: FakeBot):
-        deps.words.add("двор")
+        deps.words.add("yard")
         update = make_update("/delete_word", user_id=ADMIN_ID)
-        await admin_handlers.delete_word(update, make_context(bot, ["двор"]), deps=deps)
+        await admin_handlers.delete_word(update, make_context(bot, ["yard"]), deps=deps)
         assert deps.words.all() == frozenset()
 
     @pytest.mark.parametrize(
@@ -127,13 +127,13 @@ class TestAdminCommands:
             effective_chat=FakeChat(CHAT_ID),
             effective_user=FakeUser(id=ADMIN_ID),
         )
-        await handler(update, make_context(bot, ["двор"]), deps=deps)
+        await handler(update, make_context(bot, ["yard"]), deps=deps)
 
         assert bot.sent == []
 
     async def test_delete_word_by_stranger_is_refused(self, deps, bot: FakeBot):
-        update = make_update("/delete_word двор", user_id=STRANGER_ID)
-        await admin_handlers.delete_word(update, make_context(bot, ["двор"]), deps=deps)
+        update = make_update("/delete_word yard", user_id=STRANGER_ID)
+        await admin_handlers.delete_word(update, make_context(bot, ["yard"]), deps=deps)
 
         assert update.effective_message.replies == [deps.settings.not_admin_reply]
 
@@ -145,9 +145,9 @@ class TestAdminCommands:
         deps = make_deps(wider, words_repo, chat_settings_repo, recent_posts_repo)
         update = make_update("/add", user_id=ADMIN_ID, username="boss")
 
-        await admin_handlers.add_word(update, make_context(bot, ["двор"]), deps=deps)
+        await admin_handlers.add_word(update, make_context(bot, ["yard"]), deps=deps)
 
-        assert deps.words.all() == frozenset({"двор"})
+        assert deps.words.all() == frozenset({"yard"})
 
     async def test_list_words_by_stranger_is_refused(self, deps, bot: FakeBot):
         update = make_update("/list_words", user_id=STRANGER_ID)
@@ -160,7 +160,7 @@ class TestAdminCommands:
         bot = FakeBot()
         deps = make_deps(settings, words_repo, chat_settings_repo, recent_posts_repo)
         for index in range(2000):
-            words_repo.add(f"словo-{index:04d}")
+            words_repo.add(f"word-{index:04d}")
         update = make_update("/list_words", user_id=ADMIN_ID)
 
         await admin_handlers.list_words(update, make_context(bot), deps=deps)
@@ -214,21 +214,21 @@ class TestMessageHandler:
         assert (CHAT_ID, deps.settings.on_delete_reply, ()) in bot.sent
 
     async def test_allowed_message_is_left_alone(self, deps, bot: FakeBot):
-        deps.words.add("гараж")
+        deps.words.add("garage")
         update = make_update(BAD_TEXT, user_id=STRANGER_ID)
         await message_handlers.on_message(update, make_context(bot), deps=deps)
         assert bot.deleted == []
         assert bot.sent == []
 
     async def test_update_without_message_is_ignored(self, deps, bot: FakeBot):
-        update = make_update("текст", user_id=STRANGER_ID)
+        update = make_update("text", user_id=STRANGER_ID)
         update.effective_message = None
         await message_handlers.on_message(update, make_context(bot), deps=deps)
         assert bot.deleted == []
 
 
 class TestFromUpdateWithRealTelegramObjects:
-    """from_update должен работать и на настоящих объектах PTB, а не только на фейках."""
+    """from_update must work on real PTB objects too, not only on fakes."""
 
     def test_plain_message(self):
         from telegram import Chat, Message, Update, User
@@ -237,7 +237,7 @@ class TestFromUpdateWithRealTelegramObjects:
             message_id=5,
             date=datetime.now(UTC),
             chat=Chat(id=CHAT_ID, type="group"),
-            text="затопило двор",
+            text="flooded yard",
             from_user=User(id=STRANGER_ID, first_name="Vasya", username="vasya", is_bot=False),
         )
         incoming = from_update(Update(update_id=1, message=message))
@@ -261,7 +261,7 @@ class TestFromUpdateWithRealTelegramObjects:
         assert incoming is not None
         assert incoming.text is None
         assert incoming.user_id is None
-        assert incoming.user_label == "аноним"
+        assert incoming.user_label == "anonymous"
 
 
 @pytest.mark.parametrize("command", ["add_word", "delete_word", "list_words", "start"])

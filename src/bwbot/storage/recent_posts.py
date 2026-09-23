@@ -1,7 +1,7 @@
-"""Недавние оставленные сообщения — по ним ищем повторы.
+"""Recent kept messages — we search for repeats among them.
 
-Файл `recent_posts.json`: `{ "<chat_id>": { "<user_id>": [post, ...] } }`, где
-post — `{"id": <message_id>, "at": <epoch>, "text": <нормализованный текст>}`.
+The `recent_posts.json` file: `{ "<chat_id>": { "<user_id>": [post, ...] } }`,
+where post is `{"id": <message_id>, "at": <epoch>, "text": <normalized text>}`.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def _as_float(value: Any) -> float | None:
 
 
 def _parse_post(entry: Any) -> StoredPost | None:
-    """Одна запись списка. Мусор вместо записи — None, а не исключение."""
+    """One entry of the list. Junk instead of an entry — None, not an exception."""
     if not isinstance(entry, dict):
         return None
     message_id = entry.get("id")
@@ -54,10 +54,10 @@ def _parse_chat(entry: Any) -> dict[str, list[StoredPost]]:
 
 
 class RecentPostsRepository:
-    """Хранит последние оставленные сообщения, чтобы сравнивать с ними новые.
+    """Keeps the latest kept messages to compare new ones against.
 
-    Окно и лимит на автора применяются при каждой записи, поэтому файл не
-    разрастается, а чтение не думает о том, что пора чистить.
+    The window and the per-author limit are applied on every write, so the file
+    does not grow and reading does not have to think about cleanup.
     """
 
     def __init__(
@@ -106,7 +106,7 @@ class RecentPostsRepository:
         self._update(updater)
 
     def prune(self, *, now: float | None = None) -> int:
-        """Убирает записи вне окна целиком. Возвращает число удалённых сообщений."""
+        """Removes out-of-window entries entirely. Returns the number of deleted messages."""
         moment = time.time() if now is None else now
         oldest_allowed = moment - self._window_days * _SECONDS_PER_DAY
         removed = 0
@@ -128,11 +128,11 @@ class RecentPostsRepository:
         return removed
 
     def _update(self, updater: Callable[[dict[str, dict[str, list[StoredPost]]]], None]) -> None:
-        """Правит файл под локом. Повреждённый файл лечится перезаписью.
+        """Edits the file under a lock. A corrupt file is healed by rewriting.
 
-        На целом файле действует `mutate`: чтение и запись в одном локе. Если
-        разбор упал, менять нечего — пишем заново с пустого документа, иначе
-        бот навсегда останется без памяти о повторах.
+        On an intact file `mutate` applies: read and write in a single lock. If
+        parsing failed, there is nothing to change — we rewrite from an empty
+        document, otherwise the bot would stay without repeat memory forever.
         """
 
         def json_updater(data: Any) -> Any:
@@ -143,7 +143,7 @@ class RecentPostsRepository:
         try:
             self._store.mutate({}, json_updater)
         except CorruptStoreError:
-            logger.exception("Файл повторов повреждён, записываем заново: %s", self._store.path)
+            logger.exception("Repeat file is corrupt, rewriting it: %s", self._store.path)
             document: dict[str, dict[str, list[StoredPost]]] = {}
             updater(document)
             self._store.save(_dump_document(document))
@@ -152,9 +152,9 @@ class RecentPostsRepository:
         try:
             return _parse_document(self._store.load({}))
         except CorruptStoreError:
-            # Повреждённый файл повторов не должен останавливать модерацию:
-            # помним ровно то, что успели записать заново.
-            logger.exception("Файл повторов повреждён: %s", self._store.path)
+            # A corrupt repeat file must not stop moderation: we remember exactly
+            # what we managed to rewrite.
+            logger.exception("Repeat file is corrupt: %s", self._store.path)
             return {}
 
 
@@ -170,7 +170,7 @@ def _parse_document(data: Any) -> dict[str, dict[str, list[StoredPost]]]:
 
 
 def _dump_document(document: dict[str, dict[str, list[StoredPost]]]) -> dict[str, Any]:
-    """Обратно в JSON-совместимую структуру: StoredPost сериализовать не умеет."""
+    """Back to a JSON-compatible structure: StoredPost cannot be serialized."""
     return {
         chat_id: {
             user_id: [

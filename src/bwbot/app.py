@@ -1,4 +1,4 @@
-"""Сборка Telegram Application из настроек и зависимостей."""
+"""Assembling the Telegram Application from settings and dependencies."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.exception("Необработанная ошибка в хендлере", exc_info=context.error)
+    logger.exception("Unhandled error in a handler", exc_info=context.error)
 
 
 def build_application(settings: Settings, deps: Deps | None = None) -> Application:

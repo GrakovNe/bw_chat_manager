@@ -1,4 +1,4 @@
-"""Бан нарушителя: выкидываем его из того чата, где он написал."""
+"""Banning an offender: we kick them out of the chat where they wrote."""
 
 from __future__ import annotations
 

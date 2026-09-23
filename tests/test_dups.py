@@ -1,4 +1,4 @@
-"""Повторы: отчёт администраторам и удаление по кнопке."""
+"""Repeats: reports to administrators and deletion via the button."""
 
 from __future__ import annotations
 
@@ -25,17 +25,17 @@ from conftest import (
     make_context,
 )
 
-FIRST = "продам гараж в корпусе 3"
-COPY = "  Продам Гараж в корпусе 3!!! "
-OTHER_POST = "продам кладовку в корпусе 7 срочно"
+FIRST = "selling a garage in building 3"
+COPY = "  Selling A Garage In Building 3!!! "
+OTHER_POST = "selling a storage unit in building 7 urgently"
 OTHER_USER = 555
 DAY = 86400
 
 
 @pytest.fixture(autouse=True)
 def building_word(words_repo):
-    """Разрешённое слово нужно, чтобы сообщения проходили модерацию и попадали в базу."""
-    words_repo.add("корпус")
+    """An allowed word is needed so messages pass moderation and get into the base."""
+    words_repo.add("building")
     return words_repo
 
 
@@ -112,10 +112,10 @@ class TestRepeatReport:
         await post(deps, api, COPY, message_id=2)
 
         text = next(text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID)
-        assert "3 дня назад" in text
+        assert "3 days ago" in text
 
     async def test_report_template_comes_from_settings(self, settings, api, bot: FakeBot):
-        deps_settings = replace(settings, dup_report="дубль {score}% от {user_label}")
+        deps_settings = replace(settings, dup_report="dup {score}% from {user_label}")
         service = ModerationService(
             deps_settings,
             _words(settings),
@@ -141,10 +141,10 @@ class TestRepeatReport:
         )
 
         text = next(text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID)
-        assert text == "дубль 100% от vasya"
+        assert text == "dup 100% from vasya"
 
     async def test_deleted_message_is_not_recorded(self, deps, api, recent_posts_repo):
-        await post(deps, api, "продам гараж без адреса вообще")
+        await post(deps, api, "selling a garage without an address at all")
 
         assert recent_posts_repo.posts(CHAT_ID, STRANGER_ID) == []
 
@@ -157,7 +157,7 @@ class TestRepeatReport:
         assert bot.sent == []
 
     async def test_short_message_is_not_recorded(self, deps, api, recent_posts_repo):
-        await post(deps, api, "гараж 3")
+        await post(deps, api, "garage 3")
 
         assert recent_posts_repo.posts(CHAT_ID, STRANGER_ID) == []
 
@@ -189,7 +189,7 @@ class TestRepeatReport:
         assert not decision.deletes
 
     async def test_huge_copy_is_reported_within_telegram_limit(self, deps, api, bot: FakeBot):
-        long_copy = "продам гараж в корпусе 3 " + "детали объявления " * 1200
+        long_copy = "selling a garage in building 3 " + "listing details " * 1200
 
         await post(deps, api, long_copy, message_id=1)
         await post(deps, api, long_copy, message_id=2)
@@ -197,14 +197,14 @@ class TestRepeatReport:
         reports = [text for chat_id, text, _ in bot.sent if chat_id == ADMIN_ID]
         assert len(reports) == 1
         assert len(reports[0]) <= TELEGRAM_MESSAGE_LIMIT
-        # Обрезаем текст нарушителя, а не отчёт: хвост шаблона должен остаться.
+        # We clip the offender's text, not the report: the template tail must stay.
         assert "…" in reports[0]
-        assert "совпадение" in reports[0].splitlines()[-1]
+        assert "match" in reports[0].splitlines()[-1]
 
 
 class TestDeleteButton:
     async def test_admin_press_deletes_the_message(self, deps, bot: FakeBot):
-        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Подозрение на повтор")
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Suspected repeat")
 
         await delete_handlers.on_callback(
             make_callback(delete_data(), report=report), make_context(bot), deps=deps
@@ -214,7 +214,7 @@ class TestDeleteButton:
         assert bot.answers == [("cb-1", deps.settings.dup_deleted_reply)]
 
     async def test_report_is_updated_and_button_removed(self, deps, bot: FakeBot):
-        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Подозрение на повтор")
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Suspected repeat")
 
         await delete_handlers.on_callback(
             make_callback(delete_data(), report=report), make_context(bot), deps=deps
@@ -223,7 +223,7 @@ class TestDeleteButton:
         assert len(bot.edited) == 1
         chat_id, message_id, text, buttons = bot.edited[0]
         assert (chat_id, message_id) == (ADMIN_ID, 42)
-        assert text.startswith("Подозрение на повтор")
+        assert text.startswith("Suspected repeat")
         assert "boss" in text
         assert buttons == ()
 
@@ -245,7 +245,7 @@ class TestDeleteButton:
     async def test_failed_delete_keeps_the_button(self, deps, bot: FakeBot):
         bot.fail_deleting = (CHAT_ID, 42)
         bot.delete_error = "BadRequest: message to delete not found"
-        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Подозрение на повтор")
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Suspected repeat")
 
         await delete_handlers.on_callback(
             make_callback(delete_data(), report=report), make_context(bot), deps=deps
@@ -276,7 +276,7 @@ class TestDeleteButton:
 
     async def test_unreadable_report_does_not_undo_the_delete(self, deps, bot: FakeBot):
         bot.fail_editing = True
-        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Подозрение на повтор")
+        report = FakeMessage(message_id=42, chat_id=ADMIN_ID, text="Suspected repeat")
 
         await delete_handlers.on_callback(
             make_callback(delete_data(), report=report), make_context(bot), deps=deps

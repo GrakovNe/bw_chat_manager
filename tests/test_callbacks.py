@@ -1,4 +1,4 @@
-"""Разбор callback_data кнопки BAN — сюда приходят данные извне, проверяем придирчиво."""
+"""Parsing the BAN button's callback_data — this data comes from outside, so we are picky."""
 
 from __future__ import annotations
 
